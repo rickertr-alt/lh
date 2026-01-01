@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LifeHub</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0d0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LifeHub">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+/* Layout: eine schmale Spalte, fester Kopf, Tab-Leiste unten.
+   Look „Bunte Kacheln“: fast schwarz, dunkle runde Karten, jeder Bereich hat eine eigene Farbe. */
+:root{
+  --paper:#0d0d12; --sheet:#16161d; --sheet-solid:#16161d; --ink:#f2f2f5; --muted:#8e8e9a; --line:#24242e;
+  --accent:#ffd84d; --onaccent:#0d0d12; --marker:#ffd84d;
+  --ok:#7ee0a1; --warn:#ffb86b; --bad:#ff7a85;
+  /* Bereichsfarben (Kacheln + Überschriften) */
+  --c-stunde:#ffd84d; --c-klausur:#c6a8ff; --c-ha:#ff9f6e; --c-jobs:#7ee0a1; --c-ziele:#8ec5ff; --c-musik:#1ed760;
+  --display:ui-sans-serif,system-ui,sans-serif;
+  --body:ui-sans-serif,system-ui,sans-serif;
+  --mono:ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+body{min-height:100vh}
+[hidden]{display:none !important} /* sonst bleibt z. B. #lock (display:grid) nach dem Entsperren sichtbar */
+header.top,nav.tabs,.reader-bar{background:rgba(13,13,18,.88) !important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.hl{background:linear-gradient(transparent 60%, rgba(255,216,77,.4) 60%) !important}
+/* Kacheln auf dem Überblick */
+.bento{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.tile{all:unset;box-sizing:border-box;cursor:pointer;border-radius:20px;padding:13px 14px;color:#0d0d12;background:var(--c);display:flex;flex-direction:column;gap:2px;min-height:96px;min-width:0}
+.tile.wide{grid-column:span 2;min-height:0}
+.tile:active{transform:scale(.98)}
+.tile:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.tile .k{font:700 11px/1.3 var(--body);text-transform:uppercase;letter-spacing:.08em;opacity:.7}
+.tile .v{font:800 24px/1.1 var(--display);letter-spacing:-.01em;overflow-wrap:anywhere}
+.tile .s{font-size:14px;font-weight:600;opacity:.8;overflow-wrap:anywhere}
+.tile.pulse{box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--c)}
+/* farbiger Punkt vor Bereichs-Überschriften */
+section[style*="--c"] h2>span:first-child::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:8px;vertical-align:1px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:16px/1.45 var(--body);padding-top:env(safe-area-inset-top,0px)}
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:0 calc(140px + env(safe-area-inset-bottom,0px))} /* Platz für Tab-Leiste + Chat-Knopf */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);padding-block:14px 10px;border-bottom:1px solid var(--line)}
+.top h1{font:800 26px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.top .sub{color:var(--muted);font-size:14px;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap}
+.hl{background:linear-gradient(transparent 55%,var(--marker) 55%);color:inherit;padding:0 2px}
+section{margin-top:22px}
+h2{font:700 13px/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+h2 .count{font-family:var(--mono);letter-spacing:0}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.row{display:flex;gap:12px;padding:11px 14px;border-top:1px solid var(--line);align-items:flex-start}
+.row:first-child{border-top:0}
+.row .main{min-width:0;flex:1}
+.row .t{font-weight:700;overflow-wrap:anywhere}
+.row .d{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.time{font:500 13px/1.6 var(--mono);color:var(--muted);min-width:3.2em;font-variant-numeric:tabular-nums}
+.pill{font:700 12px/1 var(--body);padding:4px 8px;border-radius:99px;white-space:nowrap;align-self:center}
+.pill.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.mut{background:var(--line);color:var(--muted)}
+.row.ausfall .t{text-decoration:line-through;color:var(--bad)}
+.row.geaendert{background:color-mix(in srgb,var(--warn) 8%,transparent)}
+.chk{appearance:none;-webkit-appearance:none;width:24px;height:24px;border:2px solid var(--muted);border-radius:6px;margin:0;flex:none;cursor:pointer;display:grid;place-items:center;background:var(--sheet)}
+.chk:checked{background:var(--accent);border-color:var(--accent)}
+.chk:checked::after{content:"";width:6px;height:12px;border:solid var(--onaccent);border-width:0 3px 3px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.chk:focus-visible,button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--marker);outline-offset:2px}
+.done .t{text-decoration:line-through;color:var(--muted)}
+.exam{display:grid;grid-template-columns:auto 1fr;gap:14px;padding:14px;border-top:1px solid var(--line)}
+.exam:first-child{border-top:0}
+.days{font:800 30px/1 var(--display);text-align:center;min-width:2.4em}
+.days small{display:block;font:700 11px/1.4 var(--body);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.exam ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:14px}
+.empty{padding:14px;color:var(--muted);font-size:14px}
+form.add{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+input.f{flex:1 1 140px;min-width:0;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+input.f[type=time],input.f[type=date]{flex:1 1 110px}
+button{font:700 15px var(--body);border:0;border-radius:8px;padding:9px 14px;background:var(--accent);color:var(--onaccent);cursor:pointer}
+button.ghost{background:transparent;color:var(--muted);padding:2px 6px;font-size:20px;line-height:1}
+.grade{font:800 22px/1 var(--display);min-width:2em;text-align:right;font-variant-numeric:tabular-nums}
+.grade small{font:500 11px var(--mono);color:var(--muted)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--sheet);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs button{background:transparent;color:var(--muted);border-radius:0;padding:13px 2px;font-size:14px}
+nav.tabs button[aria-selected=true]{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+.note{color:var(--muted);font-size:13px;margin-top:8px}
+.badge{display:inline-block;min-width:18px;height:18px;line-height:18px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;margin-left:4px;vertical-align:top}
+#reader{position:fixed;inset:0;z-index:20;background:var(--paper);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.reader-bar{position:sticky;top:0;display:flex;gap:12px;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;background:var(--sheet);border-bottom:1px solid var(--line);z-index:1}
+.heft{max-width:680px;margin:0 auto;padding:8px 16px calc(40px + env(safe-area-inset-bottom,0px));line-height:1.55;overflow-wrap:anywhere}
+.heft h1{font:800 24px/1.2 var(--display);margin:18px 0 8px}
+.heft h2{font:800 19px/1.25 var(--display);text-transform:none;letter-spacing:0;color:var(--ink);margin:26px 0 8px;display:block;padding-top:10px;border-top:2px solid var(--line)}
+.heft h3{font-size:16px;margin:18px 0 6px}
+.heft blockquote{margin:12px 0;padding:10px 12px;border-radius:8px;background:color-mix(in srgb,var(--marker) 22%,var(--sheet));color:var(--ink)}
+.heft blockquote p{margin:0}
+.heft table{border-collapse:collapse;font-size:14px;display:block;overflow-x:auto;max-width:100%}
+.heft th,.heft td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.heft th{background:var(--sheet)}
+.heft code{font-family:var(--mono);font-size:.92em;background:var(--sheet);padding:1px 4px;border-radius:4px}
+.heft ul,.heft ol{padding-left:22px}
+button.small{padding:7px 11px;font-size:14px;white-space:nowrap}
+button.ghost2{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+.acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;align-self:center}
+.confirm{margin-top:8px;padding:10px;border-radius:8px;background:var(--paper);font-size:14px;display:grid;gap:8px}
+.pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.alarm-row{background:color-mix(in srgb,var(--ok) 9%,transparent)}
+.alert{display:block;margin-top:14px;padding:12px 14px;border-radius:12px;background:color-mix(in srgb,var(--ok) 14%,var(--sheet));border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);color:var(--ink);text-decoration:none;font-weight:700;width:100%;text-align:left;font-size:15px}
+.row a{color:var(--accent);font-weight:700;text-decoration:none;white-space:nowrap;align-self:center}
+a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;padding:12px;color:var(--accent)}
+details summary{cursor:pointer;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details .full{white-space:pre-wrap;color:var(--muted);font-size:14px;margin-top:6px}
+/* Reise-Tab */
+#tab-reise form{display:grid;gap:10px;padding:14px}
+#tab-reise label.feld{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+#tab-reise .zwei{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#tab-reise .schalter{display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)}
+#r-fehler{color:var(--bad);font-weight:700;font-size:14px;margin:0}
+.r-opt{padding:12px 14px;border-top:1px solid var(--line)}
+.r-opt:first-child{border-top:0}
+.r-opt.ueber{opacity:.45}
+.r-kopf{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.r-zeit{font:800 18px var(--display);font-variant-numeric:tabular-nums}
+.r-preis{font:800 20px var(--display);white-space:nowrap}
+.r-badge{display:inline-block;font:700 11px/1 var(--body);padding:4px 7px;border-radius:99px;margin:6px 4px 0 0;color:#0d0d12}
+.r-badge.dticket{background:var(--c-jobs)}.r-badge.guenstig{background:var(--c-stunde)}.r-badge.schnell{background:var(--c-ziele)}
+.r-legs{list-style:none;margin:8px 0;padding:0 0 0 12px;border-left:2px solid var(--line);font-size:14px;color:var(--muted)}
+.r-legs li{margin:4px 0}.r-legs b{color:var(--ink)}
+.r-opt a,.r-links a{color:var(--accent);font-weight:700;text-decoration:none;font-size:14px}
+.r-links{display:flex;flex-wrap:wrap;gap:14px;padding:0 14px 14px}
+#r-summe{padding:14px 14px 6px;font-size:15px}
+#r-schnell{padding:0 14px 14px;font-size:15px}
+#r-vergleich{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.r-modus{background:var(--sheet);border:1px solid var(--line);border-radius:18px;padding:12px;min-width:0;font-size:14px}
+.r-modus h3{margin:0 0 6px;font:800 16px var(--display)}
+.r-modus .zeile{margin:6px 0}
+.r-modus .k{display:block;font:700 11px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.r-modus .v{font:800 17px var(--display)}
+.r-modus a{color:var(--accent);font-weight:700;text-decoration:none;font-size:13px}
+#u-form{display:grid;gap:10px;padding:14px}
+#u-form .drei{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#u-form select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+.u-links{display:grid;gap:8px;padding:0 14px 14px}
+.u-links a{display:block;text-align:center;padding:12px;border-radius:12px;font-weight:800;text-decoration:none}
+#u-booking{background:var(--accent);color:var(--onaccent)}
+#u-google{border:1.5px solid var(--accent);color:var(--accent)}
+#u-liste-laden{width:100%}
+.u-hotel{padding:10px 14px;border-top:1px solid var(--line);font-size:14px}
+.u-hotel b{font-size:15px}
+.u-hotel .sterne{color:var(--c-stunde);letter-spacing:1px}
+.u-hotel a{color:var(--accent);font-weight:700;text-decoration:none;margin-right:14px}
+#r-summe .gross{font:800 26px var(--display)}
+/* KI-Chat: gelber Knopf über der Tab-Leiste, Overlay über den ganzen Bildschirm */
+#chat-fab{position:fixed;right:16px;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:7;width:56px;height:56px;border-radius:50%;padding:0;font-size:24px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px rgba(0,0,0,.45)}
+#reader:not([hidden]) ~ #chat-fab,#chat:not([hidden]) ~ #chat-fab{display:none}
+#chat{position:fixed;inset:0;z-index:30;background:var(--paper);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+#chat .kopf{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)}
+#chat .kopf b{flex:1;font:800 18px var(--display)}
+#chat-liste{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:12px 16px;display:flex;flex-direction:column;gap:10px;max-width:680px;width:100%;margin:0 auto}
+.msg{padding:10px 13px;border-radius:18px;max-width:88%;overflow-wrap:anywhere;line-height:1.45}
+.msg.du{align-self:flex-end;background:var(--c-ziele);color:#0d0d12;border-bottom-right-radius:6px;white-space:pre-wrap}
+.msg.ki{align-self:flex-start;background:var(--sheet);border:1px solid var(--line);border-bottom-left-radius:6px}
+.msg.ki ul{margin:4px 0;padding-left:20px}
+.msg.ki code{font-family:var(--mono);font-size:.92em;background:var(--paper);padding:1px 4px;border-radius:4px}
+.msg.fehler{border-color:color-mix(in srgb,var(--bad) 50%,transparent);color:var(--bad)}
+.msg .nochmal{margin-top:8px}
+.msg .quellen{margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.msg .quellen a{color:var(--accent);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-leer{color:var(--muted);text-align:center;margin:auto 0;font-size:15px}
+#chat form{display:grid;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);max-width:680px;width:100%;margin:0 auto}
+#chat form .zeile{display:flex;gap:8px;align-items:flex-end}
+#chat-eingabe{flex:1;resize:none;max-height:140px;min-height:44px;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:var(--sheet);color:var(--ink)}
+#chat label{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:14px}
+#chat label .chk{width:20px;height:20px}
+#chat-mic{min-height:44px;font-size:20px;padding:0 12px}
+#chat-mic.hoert{background:var(--accent);color:var(--onaccent)}
+/* Musik (Spotify über Last.fm) */
+#t-musik{flex-direction:row;align-items:center;gap:12px}
+#t-musik .txt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+#t-musik .v{font-size:20px}
+#t-musik img,.m-cover{width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none;background:rgba(0,0,0,.15)}
+.m-cover{width:40px;height:40px;border-radius:8px;background:var(--line)}
+.m-live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c-musik);margin-right:6px;animation:m-puls 1.4s infinite}
+@keyframes m-puls{50%{opacity:.3}}
+.m-rang{font:800 15px/40px var(--mono);color:var(--muted);min-width:1.6em;text-align:right}
+.m-wahl{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)}
+.m-wahl button{padding:6px 11px;font-size:13px;background:var(--line);color:var(--ink);border-radius:99px}
+.m-wahl button[aria-pressed=true]{background:var(--c-musik);color:#0d0d12}
+#m-setup{display:grid;gap:10px;padding:14px}
+#m-setup label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+#m-setup ol{margin:0;padding-left:20px;font-size:14px;color:var(--muted)}
+#m-setup a{color:var(--accent)}
+#lock{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+#lock .box{width:100%;max-width:360px;display:grid;gap:14px}
+#lock h1{font:800 34px/1.1 var(--display);margin:0}
+#lock p{color:var(--muted);margin:0}
+#lock .err{color:var(--bad);font-weight:700}
+</style>
+</head>
+<body>
+
+<div id="lock" hidden>
+  <form class="box" id="lock-form">
+    <h1>Life<span class="hl">Hub</span></h1>
+    <p>Gib dein App-Passwort ein. Du musst das nur einmal machen.</p>
+    <input class="f" id="pw" type="password" autocomplete="current-password" placeholder="Passwort" aria-label="Passwort">
+    <button>Entsperren</button>
+    <p class="err" id="lock-err" hidden></p>
+  </form>
+</div>
+
+<div id="app" hidden>
+<div class="wrap">
+  <header class="top">
+    <h1 id="hello">LifeHub</h1>
+    <div class="sub"><span id="today"></span><span>·</span><span id="stand"></span></div>
+  </header>
+
+  <main id="tab-heute">
+    <div class="bento">
+      <button class="tile wide" id="t-stunde" style="--c:var(--c-stunde)" data-ziel="heute:sec-vp"><span class="k"></span><span class="v"></span><span class="s"></span></button>
+      <button class="tile" id="t-klausur" style="--c:var(--c-klausur)" data-ziel="schule:sec-kl"><span class="k">Klausur</span><span class="v"></span><span class="s"></span></button>
+      <button class="tile" id="t-ha" style="--c:var(--c-ha)" data-ziel="schule:sec-ha"><span class="k">Hausaufgaben</span><span class="v"></span><span class="s"></span></button>
+      <button class="tile" id="t-jobs" style="--c:var(--c-jobs)" data-ziel="jobs:"><span class="k">Jobs</span><span class="v"></span><span class="s"></span></button>
+      <button class="tile" id="t-ziele" style="--c:var(--c-ziele)" data-ziel="heute:sec-ziele"><span class="k">Ziele</span><span class="v"></span><span class="s"></span></button>
+      <button class="tile wide" id="t-musik" style="--c:var(--c-musik)" data-ziel="heute:sec-musik"><img alt="" hidden><span class="txt"><span class="k">Musik</span><span class="v">Spotify</span><span class="s">Antippen zum Einrichten</span></span></button>
+    </div>
+    <section id="sec-vp" style="--c:var(--c-stunde)">
+      <h2><span>Stundenplan</span><span id="vp-tag" class="count"></span></h2>
+      <div class="card" id="vp"></div>
+    </section>
+    <section id="sec-ziele" style="--c:var(--c-ziele)">
+      <h2><span>Ziele für heute</span><span id="ziele-count" class="count"></span></h2>
+      <div class="card">
+        <div id="ziele"></div>
+        <form class="add" id="ziel-form"><input class="f" id="ziel-input" placeholder="Neues Ziel" maxlength="140" aria-label="Neues Ziel"><button>Hinzufügen</button></form>
+      </div>
+    </section>
+    <section id="sec-musik" style="--c:var(--c-musik)">
+      <h2><span>Musik</span><span id="m-stand" class="count"></span></h2>
+      <div class="card" id="m-card">
+        <form id="m-setup" hidden autocomplete="off">
+          <ol>
+            <li>Auf <a href="https://www.last.fm/join" target="_blank" rel="noopener">last.fm</a> anmelden und unter <a href="https://www.last.fm/settings/applications" target="_blank" rel="noopener">Einstellungen → Anwendungen</a> Spotify verbinden.</li>
+            <li>Kostenlosen API-Schlüssel holen: <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a> (Name z. B. „LifeHub“, Rest leer lassen).</li>
+          </ol>
+          <label>Last.fm-Benutzername<input class="f" id="m-user" autocapitalize="off" spellcheck="false" required></label>
+          <label>API-Schlüssel (32 Zeichen)<input class="f" id="m-key" autocapitalize="off" spellcheck="false" required pattern="[0-9a-fA-F]{32}"></label>
+          <button>Verbinden</button>
+          <p class="note" style="margin:0">Wird nur auf diesem Handy gespeichert.</p>
+        </form>
+        <div id="m-inhalt" hidden>
+          <div class="m-wahl" id="m-ansicht">
+            <button type="button" data-a="recent" aria-pressed="true">Zuletzt gehört</button>
+            <button type="button" data-a="tracks" aria-pressed="false">Top-Songs</button>
+            <button type="button" data-a="artists" aria-pressed="false">Top-Künstler</button>
+          </div>
+          <div class="m-wahl" id="m-zeitraum" hidden>
+            <button type="button" data-z="7day" aria-pressed="true">Woche</button>
+            <button type="button" data-z="1month" aria-pressed="false">Monat</button>
+            <button type="button" data-z="12month" aria-pressed="false">Jahr</button>
+            <button type="button" data-z="overall" aria-pressed="false">Immer</button>
+          </div>
+          <div id="m-liste"></div>
+        </div>
+      </div>
+      <p class="note" id="m-note" hidden>Songs kommen über Last.fm (Spotify Free erlaubt keine direkte Verbindung). Antippen öffnet den Song in Spotify. <button type="button" id="m-trennen" class="ghost" style="font-size:13px;text-decoration:underline">Trennen</button></p>
+    </section>
+    <section>
+      <h2><span>Erinnerungen</span><span id="er-count" class="count"></span></h2>
+      <div class="card">
+        <div id="erinnerungen"></div>
+        <form class="add" id="er-form">
+          <input class="f" id="er-text" placeholder="Woran erinnern?" maxlength="140" aria-label="Erinnerung">
+          <input class="f" id="er-datum" type="date" aria-label="Datum">
+          <input class="f" id="er-zeit" type="time" aria-label="Uhrzeit">
+          <button>Speichern</button>
+        </form>
+      </div>
+    </section>
+    <section>
+      <h2><span>Termine</span></h2>
+      <div class="card"><a class="btn" href="https://calendar.google.com/calendar/r/day" target="_blank" rel="noopener">Google Kalender öffnen</a></div>
+    </section>
+  </main>
+
+  <main id="tab-schule" hidden>
+    <section id="sec-ha" style="--c:var(--c-ha)">
+      <h2><span>Hausaufgaben</span><span id="ha-count" class="count"></span></h2>
+      <div class="card" id="hausaufgaben"></div>
+    </section>
+    <section id="sec-kl" style="--c:var(--c-klausur)">
+      <h2><span>Klausuren &amp; LKs</span><span id="kl-count" class="count"></span></h2>
+      <div class="card" id="klausuren"></div>
+    </section>
+    <section style="--c:var(--c-stunde)">
+      <h2><span id="unterricht-titel">Heute im Unterricht</span><span class="count">Klassenbuch</span></h2>
+      <div class="card" id="unterricht"></div>
+    </section>
+    <section>
+      <h2><span>Mein Hefter</span><span id="hefter-count" class="count"></span></h2>
+      <div class="card" id="hefter-liste"></div>
+      <button id="alle-pdfs" class="ghost2" style="width:100%;margin-top:10px">Alle Hefter als PDF in Dateien sichern</button>
+      <p class="note">🆕 = neue Stunde aus Beste.Schule, noch nicht ausgearbeitet. Schreib Claude „arbeite den Hefter aus“, dann kommen Erklärungen dazu.</p>
+    </section>
+    <section>
+      <h2><span>Letzte Noten</span><span class="count">0–15 P</span></h2>
+      <div class="card" id="noten"></div>
+    </section>
+  </main>
+
+  <main id="tab-jobs" hidden>
+    <section id="alarm-sec" style="--c:var(--c-jobs)" hidden>
+      <h2><span>Antwort-Alarm</span><span id="alarm-count" class="count"></span></h2>
+      <div class="card" id="alarm"></div>
+      <p class="note">Antworte direkt in deinem Mail-Postfach. Termine für Gespräche trage ich dir in den Kalender ein.</p>
+    </section>
+    <section style="--c:var(--c-jobs)">
+      <h2><span>Meine Bewerbungen</span></h2>
+      <div class="card" id="bewerbungen"></div>
+    </section>
+    <section>
+      <h2><span>Neue Minijob-Anzeigen</span><span id="stellen-count" class="count"></span></h2>
+      <div class="card" id="stellen"></div>
+      <p class="note">Aus der Jobbörse der Arbeitsagentur. Nur Jobs, die ab 16 gehen. Aussortiert: Reudnitz/Eisenbahnstraße, Nachtarbeit, ab 18, Bars, Führerschein, Security und Pflege.</p>
+    </section>
+    <section>
+      <h2><span>Betriebe für Direktbewerbung</span><span id="betriebe-count" class="count"></span></h2>
+      <div class="card" id="betriebe"></div>
+      <p class="note">Diese Betriebe haben eine E-Mail-Adresse. Tipp auf „Entwurf erstellen“: Die Bewerbung mit Anschreiben-PDF landet in deinen Gmail-Entwürfen. Dort liest du sie und schickst sie selbst ab.</p>
+    </section>
+  </main>
+
+  <main id="tab-reise" hidden>
+    <section style="--c:var(--c-ziele)">
+      <h2><span>Reise planen</span><span class="count">DB · echte Preise</span></h2>
+      <div class="card">
+        <form id="reise-form" autocomplete="off">
+          <label class="feld">Start<input class="f" id="r-von" list="r-orte" required></label>
+          <label class="feld">Ziel<input class="f" id="r-nach" list="r-orte" placeholder="z. B. Berlin Hbf" required></label>
+          <datalist id="r-orte"></datalist>
+          <div class="zwei">
+            <label class="feld">Hinfahrt ab<input class="f" id="r-datum" type="datetime-local" required></label>
+            <label class="feld">Max-Budget (€)<input class="f" id="r-budget" type="number" min="0" step="1" inputmode="numeric" placeholder="z. B. 50"></label>
+          </div>
+          <label class="schalter"><input type="checkbox" class="chk" id="r-rueck-an"> Rückfahrt</label>
+          <label class="feld" id="r-rueck-feld" hidden>Rückfahrt ab<input class="f" id="r-rueck" type="datetime-local"></label>
+          <button id="r-suchen">Verbindungen suchen</button>
+          <p id="r-fehler" hidden></p>
+        </form>
+      </div>
+    </section>
+    <section id="r-ergebnis"></section>
+    <section>
+      <h2><span>Meine Rabatte</span><span class="count">nur auf diesem Handy</span></h2>
+      <div class="card"><form id="r-rabatte" style="display:grid;gap:10px;padding:14px">
+        <label class="feld">Alter (für Jugendpreise)<input class="f" id="r-alter" type="number" min="0" max="120" inputmode="numeric"></label>
+        <label class="schalter"><input type="checkbox" class="chk" id="r-bc25"> BahnCard 25 (2. Klasse)</label>
+        <label class="schalter"><input type="checkbox" class="chk" id="r-dticket"> Deutschlandticket (Nahverkehr gratis)</label>
+        <div class="zwei" style="grid-template-columns:repeat(3,1fr)">
+          <label class="feld">Auto: l/100 km<input class="f" id="r-verbrauch" type="number" min="1" step="0.1" inputmode="decimal"></label>
+          <label class="feld">Sprit €/l<input class="f" id="r-spritpreis" type="number" min="0.5" step="0.01" inputmode="decimal"></label>
+          <label class="feld">Personen im Auto<input class="f" id="r-mitfahrer" type="number" min="1" max="9" inputmode="numeric"></label>
+        </div>
+      </form></div>
+    </section>
+  </main>
+
+  <main id="tab-mehr" hidden>
+    <section>
+      <h2><span>Ankündigungen</span></h2>
+      <div class="card" id="ankuendigungen"></div>
+    </section>
+    <section>
+      <h2><span>App</span></h2>
+      <div class="card">
+        <div class="empty">Neue Schuldaten kommen, sobald am PC <b>python lifehub.py app</b> läuft oder du Claude „sync“ schreibst. Abgehakte Sachen und Erinnerungen bleiben auf diesem Handy gespeichert.</div>
+        <div class="row"><button id="reload">Daten neu laden</button><button id="update" class="ghost2 small">App aktualisieren</button><button id="logout" class="ghost" style="font-size:15px">Abmelden</button></div>
+        <div class="empty" style="padding-top:0">App-Version <b id="app-version">25</b></div>
+      </div>
+    </section>
+    <section>
+      <h2><span>Hintergrundbilder</span></h2>
+      <div class="card">
+        <div class="empty">Bild antippen, dann lange drücken → <b>Zu Fotos hinzufügen</b>. Danach: Einstellungen → Hintergrundbild.</div>
+        <div class="row" style="justify-content:space-around">
+          <a href="wallpaper_glow.png" target="_blank" style="text-align:center">Dunkel mit Blau ›</a>
+          <a href="wallpaper_pur.png" target="_blank" style="text-align:center">Fast schwarz ›</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="reader" hidden>
+  <div class="reader-bar"><button id="reader-zurueck" class="ghost2 small">‹ Zurück</button><b id="reader-titel" style="flex:1;min-width:0"></b><button id="reader-pdf" class="small">PDF sichern</button></div>
+  <article id="reader-inhalt" class="heft"></article>
+</div>
+
+<div id="chat" hidden role="dialog" aria-label="Jarvis">
+  <div class="kopf"><b>Jarvis</b><button id="chat-laut" class="ghost2 small" aria-pressed="false" title="Antworten vorlesen">🔇</button><button id="chat-neu" class="ghost2 small">Neuer Chat</button><button id="chat-zu" class="small">Schließen</button></div>
+  <div id="chat-liste" aria-live="polite"></div>
+  <form id="chat-form">
+    <label><input type="checkbox" class="chk" id="chat-kontext"> 📎 Meine LifeHub-Daten mitschicken</label>
+    <div class="zeile"><button type="button" id="chat-mic" class="ghost2" hidden aria-label="Sprechen">🎤</button><textarea id="chat-eingabe" rows="1" maxlength="4000" placeholder="Frag Jarvis …" aria-label="Nachricht"></textarea><button id="chat-senden">Senden</button></div>
+  </form>
+</div>
+<button id="chat-fab" aria-label="Jarvis öffnen">🤖</button>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="heute" aria-selected="true">Überblick</button>
+  <button role="tab" data-tab="schule" aria-selected="false">Schule</button>
+  <button role="tab" data-tab="jobs" aria-selected="false">Jobs<span id="jobs-badge" class="badge" hidden></span></button>
+  <button role="tab" data-tab="reise" aria-selected="false">Reise</button>
+  <button role="tab" data-tab="mehr" aria-selected="false">Mehr</button>
+</nav>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeUrl = u => /^https?:\/\//i.test(u||"") ? u : "#";
+const pad = n => String(n).padStart(2,"0");
+const isoDay = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const TODAY = isoDay(new Date());
+const WT = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+const fmtDate = iso => { if(!iso) return ""; const d = new Date(iso.slice(0,10)+"T12:00"); return `${WT[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth()+1)}.`; };
+const daysUntil = iso => Math.round((new Date(iso.slice(0,10)+"T12:00") - new Date(TODAY+"T12:00"))/864e5);
+
+// ---------- lokaler Speicher (nur auf diesem Handy) ----------
+const store = {
+  get(k, def){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+let state = store.get("lh_state", {ha:{}, ziele:{}, erinnerungen:[]});
+const save = () => store.set("lh_state", state);
+
+// ---------- Entschlüsseln ----------
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decrypt(pack, pw){
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2", salt:b64(pack.salt), iterations:pack.iter, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(pack.iv)}, key, b64(pack.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+async function loadData(pw){
+  const res = await fetch("data.enc.json?t=" + Date.now(), {cache:"no-store"}).catch(() => fetch("data.enc.json"));
+  if(!res || !res.ok) throw new Error("netz");
+  const pack = await res.json();
+  const data = await decrypt(pack, pw);
+  store.set("lh_data", pack); // verschlüsselt, für offline
+  return data;
+}
+
+let DATA = null;
+async function unlock(pw, silent){
+  try{
+    DATA = await loadData(pw);
+    zuletztGeladen = Date.now();
+    updatePruefen();
+    store.set("lh_pw", pw);
+    $("#lock").hidden = true; $("#app").hidden = false;
+    renderAll();
+  }catch(e){
+    if(silent && store.get("lh_data")){ // offline: letzte Daten zeigen
+      try{ DATA = await decrypt(store.get("lh_data"), pw); $("#lock").hidden = true; $("#app").hidden = false; renderAll(); return; }catch(_){}
+    }
+    $("#app").hidden = true; $("#lock").hidden = false;
+    const err = $("#lock-err");
+    err.textContent = e.message === "netz" ? "Keine Verbindung. Prüf dein Internet und versuch es nochmal." : "Falsches Passwort. Versuch es nochmal.";
+    err.hidden = silent && e.message !== "netz";
+  }
+}
+// Zurück in der App (aus dem Hintergrund): neuesten Stand holen – höchstens alle 2 Minuten, ohne Netz bleibt alles wie es ist
+let zuletztGeladen = 0;
+async function frischLaden(){
+  if($("#app").hidden || Date.now() - zuletztGeladen < 120000) return;
+  zuletztGeladen = Date.now();
+  updatePruefen();
+  try{ DATA = await loadData(store.get("lh_pw","")); renderAll(); }catch(e){}
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") frischLaden(); });
+addEventListener("pageshow", e => { if(e.persisted) frischLaden(); });
+$("#lock-form").addEventListener("submit", e => { e.preventDefault(); const pw = $("#pw").value; if(pw) unlock(pw, false); });
+$("#reload").onclick = () => unlock(store.get("lh_pw",""), true);
+// Harte Aktualisierung: Service Worker + Zwischenspeicher weg, Seite frisch laden (Daten & Häkchen bleiben)
+async function appNeuLaden(){
+  try{
+    for(const r of await navigator.serviceWorker?.getRegistrations?.() || []) await r.unregister();
+    for(const k of await caches.keys()) await caches.delete(k);
+  }catch(e){}
+  location.replace(location.pathname + "?v=" + Date.now());
+}
+$("#update").onclick = () => appNeuLaden();
+
+// Neue App-Version online? Dann selbst neu laden – eine offen gebliebene Handy-App lädt ihren Code sonst nie neu
+async function updatePruefen(){
+  try{
+    const html = await (await fetch("index.html?v=" + Date.now(), {cache: "no-store"})).text();
+    const online = parseInt((html.match(/id="app-version">(\d+)/) || [])[1]);
+    if(online > parseInt($("#app-version").textContent)) appNeuLaden();
+  }catch(e){ /* offline: später nochmal */ }
+}
+$("#logout").onclick =() => { try{ localStorage.removeItem("lh_pw"); }catch(e){} location.reload(); };
+
+// ---------- Tabs ----------
+function showTab(name){
+  for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", b.dataset.tab===name);
+  for (const t of ["heute","schule","jobs","reise","mehr"]) $("#tab-"+t).hidden = t!==name;
+  store.set("lh_tab", name);
+}
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => { showTab(b.dataset.tab); scrollTo(0,0); });
+
+// ---------- Anzeigen ----------
+function renderAll(){
+  const h = new Date().getHours();
+  $("#hello").textContent = h < 11 ? "Guten Morgen" : h < 18 ? "Hallo" : "Guten Abend";
+  $("#today").textContent = new Date().toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"});
+  if(DATA.stand){ const d = new Date(DATA.stand); $("#stand").innerHTML = `Stand <span class="hl">${esc(fmtDate(DATA.stand))} ${pad(d.getHours())}:${pad(d.getMinutes())}</span>`; }
+  renderVP(); renderZiele(); renderEr(); renderKl(); renderHA(); renderNoten(); renderBew(); renderAnk(); renderJobs(); renderHefter(); renderMusik();
+  showTab(store.get("lh_tab","heute"));
+}
+
+function renderVP(){
+  const day = (DATA.vertretung||[]).filter(d=>d.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum))[0];
+  if(!day){ $("#vp").innerHTML = `<div class="empty">Kein Plan für heute. Neue Daten kommen mit dem nächsten Sync.</div>`; $("#vp-tag").textContent=""; return; }
+  $("#vp-tag").textContent = day.datum===TODAY ? "heute" : fmtDate(day.datum);
+  const rows = (day.stunden||[]).map(s => {
+    const cls = s.ausfall ? "ausfall" : s.geaendert ? "geaendert" : "";
+    const pill = s.ausfall ? `<span class="pill bad">Ausfall</span>` : s.geaendert ? `<span class="pill warn">geändert</span>` : "";
+    return `<div class="row ${cls}"><div class="time">${esc(s.beginn)}</div><div class="main"><div class="t">${esc(s.stunde)}. ${esc(s.fach_ordner||s.fach)}</div><div class="d">Raum ${esc(s.raum||"–")} · ${esc(s.lehrer||"")}${s.info?" · "+esc(s.info):""}</div></div>${pill}</div>`;
+  }).join("");
+  const info = (day.zusatzinfo||[]).length ? `<div class="row"><div class="main d">${day.zusatzinfo.map(esc).join("<br>")}</div></div>` : "";
+  $("#vp").innerHTML = (rows || `<div class="empty">Keine Stunden eingetragen.</div>`) + info;
+}
+
+// ---------- Überblick: bunte Kacheln ----------
+function kachel(id, k, v, s){
+  const t = $("#"+id);
+  if(k !== null) t.querySelector(".k").textContent = k;
+  t.querySelector(".v").textContent = v;
+  t.querySelector(".s").textContent = s;
+}
+function naechsteStunde(){
+  const jetzt = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  const tage = (DATA.vertretung||[]).filter(d=>d.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum));
+  for(const d of tage){
+    const s = (d.stunden||[]).filter(s => !s.ausfall && (d.datum>TODAY || (s.beginn||"") > jetzt))[0];
+    if(s) return {tag:d.datum, s};
+  }
+  return null;
+}
+function renderBento(){
+  if(!DATA) return;
+  const n = naechsteStunde();
+  if(n){
+    const wann = n.tag===TODAY ? "" : daysUntil(n.tag)===1 ? " · morgen" : " · "+fmtDate(n.tag);
+    kachel("t-stunde", "Nächste Stunde"+wann, `${n.s.fach_ordner||n.s.fach} · ${n.s.beginn||""}`,
+      `Raum ${n.s.raum||"–"}${n.s.geaendert?" · geändert!":""}${n.s.info?" · "+n.s.info:""}`);
+  } else kachel("t-stunde", "Nächste Stunde", "Frei 🎉", "Kein Unterricht im Plan");
+
+  const k = (DATA.klausuren||[]).filter(k=>k.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum))[0];
+  if(k){ const d = daysUntil(k.datum); kachel("t-klausur", null, d===0?"Heute!":d===1?"Morgen":`${d} Tage`, `${k.fach}${k.art?" · "+k.art:""}`); }
+  else kachel("t-klausur", null, "Keine", "in Sicht");
+
+  const offen = (DATA.hausaufgaben||[]).filter(h=>!state.ha[h.id]);
+  const bald = offen.filter(h=>h.faellig && daysUntil(h.faellig)<=1).length;
+  kachel("t-ha", null, String(offen.length), !offen.length ? "alles erledigt ✓" : bald ? `${bald} bis morgen` : "offen");
+
+  const alarm = DATA.jobs?.alarm || [];
+  const gesehen = store.get("lh_alarm_gesehen", []);
+  const neu = alarm.filter(a => !gesehen.includes(a.firma + a.datum)).length;
+  const b = DATA.bewerbungen;
+  kachel("t-jobs", null, neu ? `${neu} neu` : b ? String(b.offen ?? 0) : "–", neu ? "Antwort da!" : b ? "ohne Antwort" : "noch kein Stand");
+  $("#t-jobs").classList.toggle("pulse", !!neu);
+
+  const z = zieleHeute();
+  kachel("t-ziele", null, z.length ? `${z.filter(i=>i.erledigt).length}/${z.length}` : "0", z.length ? "erledigt" : "noch keine");
+}
+$(".bento").addEventListener("click", e => {
+  const t = e.target.closest(".tile"); if(!t) return;
+  const [tab, sec] = t.dataset.ziel.split(":");
+  if(t.id === "t-jobs"){ // Antworten gelten als gesehen, sobald du sie öffnest
+    const alarm = DATA.jobs?.alarm || [];
+    store.set("lh_alarm_gesehen", [...new Set([...store.get("lh_alarm_gesehen", []), ...alarm.map(a=>a.firma+a.datum)])]);
+    renderJobs();
+  }
+  showTab(tab);
+  if(sec){ const el = $("#"+sec); scrollTo(0, el.getBoundingClientRect().top + scrollY - $("header.top").offsetHeight - 8); }
+  else scrollTo(0,0);
+});
+
+// ---------- Musik: Spotify über Last.fm (Spotify selbst lässt eigene Apps nur mit Premium zu) ----------
+let musik = store.get("lh_musik", null); // {user, key} – nur auf diesem Handy
+let mAnsicht = "recent", mZeitraum = "7day", mLaedt = false;
+const LFM_LEER = "2a96cbd8b46e442fc41c2b86b821562f"; // Last.fm-Platzhalterbild (grauer Stern)
+const lfmBild = arr => { const u = (arr||[]).slice(-1)[0]?.["#text"] || ""; return u && !u.includes(LFM_LEER) ? u : ""; };
+const spotifyLink = q => "https://open.spotify.com/search/" + encodeURIComponent(q);
+async function lfm(method, extra){
+  const p = new URLSearchParams({method, user:musik.user, api_key:musik.key, format:"json", ...extra});
+  const res = await fetch("https://ws.audioscrobbler.com/2.0/?" + p);
+  const j = await res.json().catch(() => ({}));
+  if(j.error) throw new Error(j.error===6 ? "Last.fm-Benutzer nicht gefunden." : j.error===10 || j.error===26 ? "API-Schlüssel ungültig." : j.error===17 ? "Dein Hörverlauf ist privat. In Last.fm → Einstellungen → Datenschutz „Kürzlich gehörte Titel verbergen“ ausschalten." : (j.message || "Last.fm-Fehler"));
+  if(!res.ok) throw new Error("Last.fm antwortet gerade nicht.");
+  return j;
+}
+function vorWann(uts){
+  const min = Math.round((Date.now()/1000 - uts)/60);
+  return min < 60 ? `vor ${Math.max(min,1)} Min` : min < 1440 ? `vor ${Math.round(min/60)} Std` : fmtDate(isoDay(new Date(uts*1000)));
+}
+function musikKachel(song, live, fehler){
+  const t = $("#t-musik"), img = t.querySelector("img");
+  if(!musik){ kachel("t-musik", "Musik", "Spotify", "Antippen zum Einrichten"); img.hidden = true; return; }
+  if(fehler){ kachel("t-musik", "Musik", "–", fehler); img.hidden = true; return; }
+  if(!song){ kachel("t-musik", "Musik", "Noch nichts", "Hör was auf Spotify 🎧"); img.hidden = true; return; }
+  kachel("t-musik", live ? "▶ Läuft gerade" : "Zuletzt gehört · " + vorWann(+song.date?.uts), song.name, song.artist["#text"]);
+  const b = lfmBild(song.image); img.hidden = !b; if(b) img.src = b;
+}
+async function renderMusik(){
+  const an = !!musik;
+  $("#m-setup").hidden = an; $("#m-inhalt").hidden = !an; $("#m-note").hidden = !an;
+  if(!an){ $("#m-stand").textContent = ""; musikKachel(); return; }
+  if(mLaedt) return; mLaedt = true;
+  const liste = $("#m-liste");
+  try{
+    if(mAnsicht === "recent"){
+      const j = await lfm("user.getrecenttracks", {limit:15, extended:0});
+      const tr = [].concat(j.recenttracks?.track || []);
+      const live = tr[0]?.["@attr"]?.nowplaying === "true";
+      musikKachel(tr[0], live);
+      liste.innerHTML = tr.length ? tr.map((s,i) => {
+        const b = lfmBild(s.image), jetzt = i===0 && live;
+        return `<a class="row" style="text-decoration:none;color:inherit;align-items:center" href="${spotifyLink(s.artist["#text"]+" "+s.name)}" target="_blank" rel="noopener">
+          ${b ? `<img class="m-cover" src="${esc(b)}" alt="" loading="lazy">` : `<span class="m-cover"></span>`}
+          <div class="main"><div class="t">${jetzt?'<span class="m-live"></span>':""}${esc(s.name)}</div><div class="d">${esc(s.artist["#text"])}</div></div>
+          <span class="time" style="min-width:0;white-space:nowrap">${jetzt ? "jetzt" : s.date ? esc(vorWann(+s.date.uts)) : ""}</span></a>`;
+      }).join("") : `<div class="empty">Noch keine Songs. Hör etwas auf Spotify, dann taucht es hier auf.</div>`;
+    } else {
+      const art = mAnsicht === "artists";
+      const j = await lfm(art ? "user.gettopartists" : "user.gettoptracks", {period:mZeitraum, limit:15});
+      const items = [].concat((art ? j.topartists?.artist : j.toptracks?.track) || []);
+      liste.innerHTML = items.length ? items.map((x,i) => {
+        const q = art ? x.name : x.artist.name + " " + x.name;
+        return `<a class="row" style="text-decoration:none;color:inherit;align-items:center" href="${spotifyLink(q)}" target="_blank" rel="noopener">
+          <span class="m-rang">${i+1}</span>
+          <div class="main"><div class="t">${esc(x.name)}</div>${art ? "" : `<div class="d">${esc(x.artist.name)}</div>`}</div>
+          <span class="time" style="min-width:0;white-space:nowrap">${esc(x.playcount)}×</span></a>`;
+      }).join("") : `<div class="empty">Für diesen Zeitraum gibt es noch keine Daten. Nach ein paar Tagen Hören füllt sich das.</div>`;
+    }
+    $("#m-stand").textContent = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  }catch(e){
+    const msg = e instanceof TypeError ? "Keine Verbindung zu Last.fm." : e.message;
+    liste.innerHTML = `<div class="empty">${esc(msg)}</div>`;
+    if(mAnsicht === "recent") musikKachel(null, false, msg);
+  }finally{ mLaedt = false; }
+}
+function mWahl(gruppe, attr, wert){
+  for(const b of gruppe.querySelectorAll("button")) b.setAttribute("aria-pressed", b.dataset[attr] === wert);
+}
+$("#m-ansicht").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  mAnsicht = b.dataset.a; mWahl($("#m-ansicht"), "a", mAnsicht);
+  $("#m-zeitraum").hidden = mAnsicht === "recent";
+  renderMusik();
+});
+$("#m-zeitraum").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  mZeitraum = b.dataset.z; mWahl($("#m-zeitraum"), "z", mZeitraum);
+  renderMusik();
+});
+$("#m-setup").addEventListener("submit", e => {
+  e.preventDefault();
+  musik = {user: $("#m-user").value.trim(), key: $("#m-key").value.trim()};
+  store.set("lh_musik", musik);
+  renderMusik();
+});
+$("#m-trennen").onclick = () => {
+  if(!confirm("Last.fm von der App trennen?")) return;
+  musik = null; try{ localStorage.removeItem("lh_musik"); }catch(e){}
+  renderMusik();
+};
+// Solange der Überblick offen ist, alle 30 Sekunden nachsehen, was läuft
+setInterval(() => {
+  if(musik && document.visibilityState === "visible" && !$("#app").hidden && !$("#tab-heute").hidden && mAnsicht === "recent") renderMusik();
+}, 30000);
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && musik && DATA) renderMusik(); });
+
+function zieleHeute(){
+  if(!state.ziele[TODAY]){
+    const vomPC = (DATA.ziele && DATA.ziele.datum===TODAY) ? DATA.ziele.items : [];
+    state.ziele = {[TODAY]: vomPC.map(z=>({text:z.text, erledigt:!!z.erledigt}))}; // alte Tage verwerfen
+    save();
+  }
+  return state.ziele[TODAY];
+}
+function renderZiele(){
+  const items = zieleHeute();
+  $("#ziele-count").textContent = items.length ? `${items.filter(i=>i.erledigt).length}/${items.length}` : "";
+  $("#ziele").innerHTML = items.length ? items.map((z,i)=>`<div class="row ${z.erledigt?"done":""}"><input type="checkbox" class="chk" data-z="${i}" ${z.erledigt?"checked":""} aria-label="geschafft"><div class="main"><div class="t">${esc(z.text)}</div></div><button class="ghost" data-zdel="${i}" aria-label="Ziel löschen">×</button></div>`).join("")
+    : `<div class="empty">Noch keine Ziele. Schreib unten dein erstes Ziel für heute.</div>`;
+  renderBento();
+}
+$("#ziele").addEventListener("change", e => { const i=e.target.dataset.z; if(i===undefined) return; zieleHeute()[i].erledigt=e.target.checked; save(); renderZiele(); });
+$("#ziele").addEventListener("click", e => { const i=e.target.dataset.zdel; if(i===undefined) return; zieleHeute().splice(i,1); save(); renderZiele(); });
+$("#ziel-form").addEventListener("submit", e => { e.preventDefault(); const v=$("#ziel-input").value.trim(); if(!v) return; zieleHeute().push({text:v,erledigt:false}); save(); $("#ziel-input").value=""; renderZiele(); });
+
+function renderEr(){
+  const es = [...state.erinnerungen].sort((a,b)=>(a.erledigt-b.erledigt)||((a.datum||"")+(a.zeit||"")).localeCompare((b.datum||"")+(b.zeit||"")));
+  const faellig = es.filter(e=>!e.erledigt && e.datum && e.datum<=TODAY).length;
+  $("#er-count").textContent = faellig ? `${faellig} fällig` : "";
+  $("#erinnerungen").innerHTML = es.length ? es.map(r => {
+    let pill = "";
+    if(r.datum && !r.erledigt){ const n=daysUntil(r.datum); const z = r.zeit?" "+esc(r.zeit):""; pill = n<0?`<span class="pill bad">${esc(fmtDate(r.datum))}</span>`:n===0?`<span class="pill warn">heute${z}</span>`:`<span class="pill mut">${esc(fmtDate(r.datum))}${z}</span>`; }
+    return `<div class="row ${r.erledigt?"done":""}"><input type="checkbox" class="chk" data-er="${esc(r.id)}" ${r.erledigt?"checked":""} aria-label="erledigt"><div class="main"><div class="t">${esc(r.text)}</div></div>${pill}<button class="ghost" data-erdel="${esc(r.id)}" aria-label="Erinnerung löschen">×</button></div>`;
+  }).join("") : `<div class="empty">Keine Erinnerungen. Trag unten etwas mit Datum ein.</div>`;
+}
+$("#erinnerungen").addEventListener("change", e => { const id=e.target.dataset.er; if(!id) return; const r=state.erinnerungen.find(x=>x.id===id); if(r){ r.erledigt=e.target.checked; save(); renderEr(); } });
+$("#erinnerungen").addEventListener("click", e => { const id=e.target.dataset.erdel; if(!id) return; state.erinnerungen=state.erinnerungen.filter(x=>x.id!==id); save(); renderEr(); });
+$("#er-datum").value = TODAY;
+$("#er-form").addEventListener("submit", e => { e.preventDefault(); const text=$("#er-text").value.trim(); if(!text) return;
+  state.erinnerungen.push({id:Date.now().toString(36), text, datum:$("#er-datum").value||null, zeit:$("#er-zeit").value||null, erledigt:false});
+  save(); $("#er-text").value=""; $("#er-zeit").value=""; renderEr(); });
+
+function renderKl(){
+  const ks = (DATA.klausuren||[]).filter(k=>k.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum));
+  $("#kl-count").textContent = ks.length || "";
+  $("#klausuren").innerHTML = ks.length ? ks.map(k => {
+    const n = daysUntil(k.datum);
+    return `<div class="exam"><div class="days">${n===0?"!":n}<small>${n===0?"heute":n===1?"Tag":"Tage"}</small></div><div style="min-width:0"><div class="t" style="font-weight:700">${esc(k.fach)} <span class="d" style="color:var(--muted);font-weight:400">· ${esc(k.art||"")}</span></div><div style="color:var(--muted);font-size:14px">${esc(fmtDate(k.datum))}</div>${(k.themen||[]).length?`<ul>${k.themen.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>`:`<div style="color:var(--muted);font-size:14px">Thema noch offen</div>`}</div></div>`;
+  }).join("") : `<div class="empty">Keine anstehenden Klausuren.</div>`;
+}
+
+function renderHA(){
+  const all = (DATA.hausaufgaben||[]).map(h=>({...h, erledigt:!!state.ha[h.id]}));
+  all.sort((a,b)=>(a.erledigt-b.erledigt) || (a.faellig||"9999").localeCompare(b.faellig||"9999"));
+  $("#ha-count").textContent = `${all.filter(h=>!h.erledigt).length} offen`;
+  $("#hausaufgaben").innerHTML = all.length ? all.map(h => {
+    let pill = "";
+    if(h.faellig && !h.erledigt){ const n=daysUntil(h.faellig); pill = n<0?`<span class="pill bad">überfällig</span>`:n===0?`<span class="pill warn">heute</span>`:`<span class="pill mut">${esc(fmtDate(h.faellig))}</span>`; }
+    return `<div class="row ${h.erledigt?"done":""}"><input type="checkbox" class="chk" data-ha="${esc(h.id)}" ${h.erledigt?"checked":""} aria-label="erledigt"><div class="main"><div class="t">${esc(h.fach||"Sonstiges")}</div><div class="d">${esc(h.text)}</div></div>${pill}</div>`;
+  }).join("") : `<div class="empty">Keine offenen Hausaufgaben.</div>`;
+  renderBento();
+}
+$("#hausaufgaben").addEventListener("change", e => { const id=e.target.dataset.ha; if(!id) return; if(e.target.checked) state.ha[id]=true; else delete state.ha[id]; save(); renderHA(); });
+
+function renderNoten(){
+  const ns = [...(DATA.noten||[])].sort((a,b)=>(b.datum||"").localeCompare(a.datum||""));
+  $("#noten").innerHTML = ns.length ? ns.map(n => {
+    const p = Number(n.wert); const c = p>=10?"ok":p>=5?"warn":"bad";
+    return `<div class="row"><div class="main"><div class="t">${esc(n.fach)}</div><div class="d">${esc(n.art||"")}${n.notiz?" · "+esc(n.notiz):""} · ${esc(fmtDate(n.datum))}</div></div><div class="grade" style="color:var(--${c})">${esc(n.wert)}<small> P</small></div></div>`;
+  }).join("") : `<div class="empty">Noch keine Noten.</div>`;
+}
+
+function renderBew(){
+  const b = DATA.bewerbungen;
+  if(!b){ $("#bewerbungen").innerHTML = `<div class="empty">Noch kein Stand.</div>`; return; }
+  const rows = [["Verschickt",b.gesamt],["Ohne Antwort",b.offen],["Eingangsbestätigungen",b.bestaetigt],["Absagen",b.absagen],["Zusagen / Gespräche",b.zusagen]]
+    .map(([k,v])=>`<div class="row"><div class="main"><div class="t">${esc(k)}</div></div><div class="grade">${esc(v)}</div></div>`).join("");
+  const letzte = (b.antworten||[]).map(a=>`<div class="row"><div class="main"><div class="t">${esc(a.firma)}</div><div class="d">${esc(a.status)}</div></div></div>`).join("");
+  $("#bewerbungen").innerHTML = rows + letzte;
+}
+
+function renderHefter(){
+  const h = DATA.hefter || {faecher:[], unterricht:[]};
+  const tag = h.unterricht_tag;
+  $("#unterricht-titel").textContent = !tag ? "Im Unterricht" : tag===TODAY ? "Heute im Unterricht" : `Im Unterricht am ${fmtDate(tag)}`;
+  $("#unterricht").innerHTML = h.unterricht.length ? h.unterricht.map(u => `<div class="row"><div class="main"><div class="t">${esc(u.fach)}</div><div class="d">${esc(u.thema)}</div></div><button class="small ghost2" data-heft="${esc(u.fach)}">Hefter</button></div>`).join("")
+    : `<div class="empty">Noch keine Einträge im Klassenbuch.</div>`;
+  $("#hefter-count").textContent = h.faecher.length ? `${h.faecher.length} Fächer` : "";
+  $("#hefter-liste").innerHTML = h.faecher.length ? h.faecher.map(f => `<div class="row" data-heft="${esc(f.fach)}" style="cursor:pointer"><div class="main"><div class="t">${esc(f.fach)}</div><div class="d">${f.stunden} Stunden · zuletzt ${esc(f.zuletzt)}</div></div>${f.neu?`<span class="pill warn">${f.neu} 🆕</span>`:""}<span class="d" aria-hidden="true">›</span></div>`).join("")
+    : `<div class="empty">Noch keine Hefter.</div>`;
+}
+function oeffneHefter(fach){
+  const f = (DATA.hefter?.faecher||[]).find(x => x.fach === fach); if(!f) return;
+  $("#reader-titel").textContent = `Hefter ${f.fach}`;
+  $("#reader-inhalt").innerHTML = f.html; // eigene Inhalte vom PC (Markdown -> HTML)
+  $("#reader-pdf").hidden = !f.pdf;
+  $("#reader-pdf").textContent = "PDF sichern"; delete $("#reader-pdf").dataset.text;
+  pdfVorladen(f)?.catch(()=>{}); // ohne PDF gibt es nichts vorzuladen
+  $("#reader").hidden = false; $("#reader").scrollTop = 0;
+}
+document.addEventListener("click", e => { const el = e.target.closest("[data-heft]"); if(el) oeffneHefter(el.dataset.heft); });
+$("#reader-zurueck").onclick = () => { $("#reader").hidden = true; };
+
+// Hefter-PDFs: verschlüsselt geladen, auf dem Handy entschlüsselt, dann über das Teilen-Menü „In Dateien sichern“
+async function pdfDatei(f){
+  const p = f.pdf;
+  const res = await fetch(p.datei + "?t=" + Date.now(), {cache:"no-store"});
+  if(!res.ok) throw new Error("netz");
+  const key = await crypto.subtle.importKey("raw", b64(p.key), "AES-GCM", false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(p.iv)}, key, await res.arrayBuffer());
+  return new File([plain], p.name, {type:"application/pdf"});
+}
+const pdfCache = {}, pdfFertig = {};
+function pdfVorladen(f){
+  if(f.pdf && !pdfCache[f.fach]) pdfCache[f.fach] = pdfDatei(f).then(file => (pdfFertig[f.fach] = file), e => { delete pdfCache[f.fach]; throw e; });
+  return pdfCache[f.fach];
+}
+async function pdfsTeilen(faecher, btn){
+  const liste = faecher.filter(f => f.pdf);
+  if(!liste.every(f => pdfFertig[f.fach])){ // noch nicht geladen: laden, dann zweiter Tipp teilt sofort
+    const alt = btn.dataset.text || btn.textContent; btn.dataset.text = alt;
+    btn.disabled = true; btn.textContent = "PDF wird vorbereitet …";
+    try{ await Promise.all(liste.map(pdfVorladen)); btn.textContent = "Bereit: nochmal tippen zum Sichern"; }
+    catch(e){ btn.textContent = "Kein Internet? Nochmal tippen"; }
+    btn.disabled = false; return;
+  }
+  const files = liste.map(f => pdfFertig[f.fach]); // schon fertig -> Teilen sofort im selben Tipp
+  try{
+    if(navigator.canShare && navigator.canShare({files})) await navigator.share({files, title: files.length > 1 ? "Hefter" : files[0].name});
+    else for(const file of files) window.open(URL.createObjectURL(file), "_blank");
+  }catch(err){ /* abgebrochen */ }
+  if(btn.dataset.text) btn.textContent = btn.dataset.text;
+}
+$("#reader-pdf").onclick = e => {
+  const f = (DATA.hefter?.faecher||[]).find(x => `Hefter ${x.fach}` === $("#reader-titel").textContent);
+  if(f) pdfsTeilen([f], e.currentTarget);
+};
+$("#alle-pdfs").onclick = e => pdfsTeilen(DATA.hefter?.faecher||[], e.currentTarget);
+
+function renderJobs(){
+  const j = DATA.jobs || {stellen:[], betriebe:[], alarm:[]};
+  const neuSeit = d => d && daysUntil(d) >= -1; // heute oder gestern neu
+
+  // Antwort-Alarm: noch nicht gesehene Antworten stehen oben auf "Heute" und als Badge am Tab
+  const gesehen = store.get("lh_alarm_gesehen", []);
+  const offen = j.alarm.filter(a => !gesehen.includes(a.firma + a.datum));
+  $("#alarm-sec").hidden = !j.alarm.length;
+  $("#alarm-count").textContent = j.alarm.length || "";
+  const icon = {"Einladung zum Gespräch":"🎉","Zusage":"✅","Rückfrage":"❓","Unklar – selbst lesen":"👀"};
+  $("#alarm").innerHTML = j.alarm.map(a => `<div class="row alarm-row"><div class="main"><details><summary><div class="t">${icon[a.status]||"📬"} ${esc(a.firma)}</div><div class="d">${esc(a.status)} · ${esc(fmtDate(a.datum))}</div></summary><div class="full"><b>${esc(a.betreff)}</b>\nvon ${esc(a.von)}\n\n${esc(a.auszug)}…</div></details></div></div>`).join("");
+  $("#jobs-badge").hidden = !offen.length; $("#jobs-badge").textContent = offen.length;
+  renderBento();
+
+  $("#stellen-count").textContent = j.stellen_gesamt ? `${j.stellen_gesamt} Anzeigen` : "";
+  $("#stellen").innerHTML = j.stellen.length ? j.stellen.map(s => {
+    const orte = (s.plz_liste||[]).slice(0,3).join(", ") + ((s.plz_liste||[]).length>3?" …":"");
+    return `<div class="row"><div class="main"><div class="t">${neuSeit(s.neu_seit)?'<span class="pill warn" style="margin-right:6px">neu</span>':""}${esc(s.titel)}</div><div class="d">${esc(s.firma)}${s.anzahl>1?` · ${s.anzahl} Filialen`:""}${orte?" · "+esc(orte):""}</div>${s.hinweis?`<div class="d" style="color:var(--warn)">⚠ ${esc(s.hinweis)}</div>`:""}</div><a href="${esc(safeUrl(s.link))}" target="_blank" rel="noopener">Ansehen ›</a></div>`;
+  }).join("") : `<div class="empty">Noch keine Anzeigen. Das Radar läuft beim nächsten Sync.</div>`;
+
+  $("#betriebe-count").textContent = j.betriebe.length || "";
+  const fertig = store.get("lh_entwuerfe", {}); // id -> true, wenn der Entwurf in Gmail liegt
+  $("#betriebe").innerHTML = j.betriebe.length ? j.betriebe.map(b => {
+    const aktion = fertig[b.id]
+      ? `<div class="acts"><span class="pill ok">In Gmail-Entwürfen</span><a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener">Öffnen ›</a></div>`
+      : (b.entwurf && j.entwurf_url ? `<button class="small ghost2" data-entwurf="${esc(b.id)}">Entwurf erstellen</button>` : "");
+    return `<div class="row"><div class="main"><div class="t">${esc(b.firma)}</div><div class="d">${esc([b.art, b.kueche].filter(Boolean).join(", "))}${b.plz_ort?" · "+esc(b.plz_ort):""} · ${esc(b.stelle||"")}${b.website?` · <a href="${esc(safeUrl(b.website))}" target="_blank" rel="noopener">Website</a>`:""}</div><div class="d" id="status-${esc(b.id)}"></div></div>${aktion}</div>`;
+  }).join("") : `<div class="empty">Keine Betriebe gefunden.</div>`;
+}
+
+// Entwurf direkt in Gmail anlegen: signierte Anfrage an dein Google-Skript (es kann nur Entwürfe anlegen, nie senden)
+async function hmacHex(schluessel, text){
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(schluessel), {name:"HMAC", hash:"SHA-256"}, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text)));
+  return [...sig].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+$("#betriebe").addEventListener("click", async e => {
+  const btn = e.target.closest("button[data-entwurf]"); if(!btn) return;
+  const j = DATA.jobs, b = j.betriebe.find(x => x.id === btn.dataset.entwurf); if(!b) return;
+  const status = $("#status-"+b.id);
+  btn.disabled = true; btn.textContent = "Wird angelegt …";
+  try{
+    // Umlaute & Sonderzeichen als \uXXXX: dann signieren Handy und Google-Skript exakt dieselben (ASCII-)Bytes
+    const payload = JSON.stringify({...b.entwurf, zeit: Date.now()})
+      .replace(/[\u007f-￿]/g, ch => "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0"));
+    const res = await fetch(j.entwurf_url, {method:"POST", body: JSON.stringify({payload, sig: await hmacHex(j.entwurf_schluessel, payload)})});
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.fehler || "unbekannt");
+    const fertig = store.get("lh_entwuerfe", {}); fertig[b.id] = true; store.set("lh_entwuerfe", fertig);
+    renderJobs();
+  }catch(err){
+    btn.disabled = false; btn.textContent = "Entwurf erstellen";
+    status.textContent = err.message === "abgelaufen" ? "Die Uhrzeit auf dem Handy stimmt nicht. Prüf Datum und Uhrzeit." :
+      err.message === "signatur" ? "Das Google-Skript kennt den Schlüssel nicht. Sag Claude Bescheid." :
+      "Hat nicht geklappt. Prüf dein Internet und versuch es nochmal.";
+  }
+});
+
+function renderAnk(){
+  const as = [...(DATA.ankuendigungen||[])].sort((a,b)=>(b.datum||"").localeCompare(a.datum||""));
+  $("#ankuendigungen").innerHTML = as.length ? as.map(a=>`<div class="row"><div class="main"><details><summary><div class="t">${esc(a.betreff)}</div><div class="d">${esc(fmtDate(a.datum))} · ${esc(a.von||"")}</div></summary><div class="full">${esc(a.text||"")}</div></details></div></div>`).join("") : `<div class="empty">Keine Ankündigungen.</div>`;
+}
+
+// ---------- Reise (echte DB-Verbindungen über den Cloudflare-Helfer, Route /reise) ----------
+const REISE_URL = () => CHAT_URL.replace(/\/chat$/, "/reise");
+const euro = n => n == null ? "Preis bei der Bahn" : n.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}) + " €";
+const uhr = iso => iso ? new Date(iso).toLocaleTimeString("de-DE", {hour:"2-digit", minute:"2-digit"}) : "";
+let reiseCfg = store.get("lh_reise", {alter:null, bc25:false, dticket:false, heimat:{id:"8010205", name:"Leipzig Hbf"}});
+const reiseOrte = new Map([[reiseCfg.heimat?.name || "Leipzig Hbf", reiseCfg.heimat?.id || "8010205"]]);
+
+function reiseEinstellungen(){
+  $("#r-alter").value = reiseCfg.alter ?? ""; $("#r-bc25").checked = !!reiseCfg.bc25; $("#r-dticket").checked = !!reiseCfg.dticket;
+  $("#r-verbrauch").value = reiseCfg.verbrauch ?? 7; $("#r-spritpreis").value = reiseCfg.spritpreis ?? 1.75; $("#r-mitfahrer").value = reiseCfg.mitfahrer ?? 1;
+  if(!$("#r-von").value) $("#r-von").value = reiseCfg.heimat?.name || "Leipzig Hbf";
+  if(!$("#r-datum").value){ const d = new Date(Date.now() + 36e5); $("#r-datum").value = `${isoDay(d)}T${pad(d.getHours())}:00`; }
+}
+$("#r-rabatte").addEventListener("change", () => {
+  const a = parseInt($("#r-alter").value);
+  const zahl = (id, def) => { const v = parseFloat($(id).value); return isNaN(v) || v <= 0 ? def : v; };
+  reiseCfg = {...reiseCfg, alter: isNaN(a) ? null : a, bc25: $("#r-bc25").checked, dticket: $("#r-dticket").checked,
+    verbrauch: zahl("#r-verbrauch", 7), spritpreis: zahl("#r-spritpreis", 1.75), mitfahrer: Math.max(1, Math.round(zahl("#r-mitfahrer", 1)))};
+  store.set("lh_reise", reiseCfg);
+  if(letzteReise) reiseZeigen(letzteReise.a, letzteReise.erg); // Autokosten neu rechnen
+});
+$("#r-rueck-an").addEventListener("change", e => { $("#r-rueck-feld").hidden = !e.target.checked; });
+
+let reiseZeitlimit = 45000; // ms – danach Abbruch statt ewig „Suche läuft …“
+async function reiseAnfrage(pfad, body){
+  const res = await fetch(REISE_URL() + pfad, {method:"POST", signal: AbortSignal.timeout(reiseZeitlimit),
+    headers:{"content-type":"application/json", authorization:"Bearer " + await zugangscode()}, body: JSON.stringify(body)});
+  if(!res.ok) throw new Error((await res.text().catch(()=>"")) || `Fehler ${res.status}`);
+  return res.json();
+}
+
+// Bahnhofs-Vorschläge beim Tippen, leicht verzögert
+let orteTimer;
+for(const feld of ["#r-von", "#r-nach"]) $(feld).addEventListener("input", e => {
+  clearTimeout(orteTimer); const q = e.target.value.trim(); if(q.length < 3 || reiseOrte.has(q)) return;
+  orteTimer = setTimeout(async () => {
+    try{
+      const liste = await reiseAnfrage("/orte", {q});
+      for(const o of liste) reiseOrte.set(o.name, o.id);
+      $("#r-orte").innerHTML = liste.map(o => `<option value="${esc(o.name)}">`).join("");
+    }catch(e){}
+  }, 350);
+});
+
+async function ortId(name){
+  if(reiseOrte.has(name)) return reiseOrte.get(name);
+  const o = (await reiseAnfrage("/orte", {q: name}))[0];
+  if(!o) throw new Error(`„${name}“ als Bahnhof nicht gefunden.`);
+  reiseOrte.set(o.name, o.id); return o.id;
+}
+
+const ARTEN = {dticket:"0 € mit D-Ticket", guenstig:"Günstigste", schnell:"Schnellste"};
+function reiseKarte(o, budget){
+  const legs = o.legs.filter(l => l.zug).map(l => `<li><b>${esc(uhr(l.ab))}</b> ${esc(l.linie||"")} ${l.gleisAb?`Gl. ${esc(l.gleisAb)} `:""}· ${esc(l.von||"")} → <b>${esc(uhr(l.an))}</b> ${esc(l.nach||"")}</li>`).join("");
+  const ueber = budget != null && o.preis != null && o.preis > budget;
+  return `<div class="r-opt${ueber?" ueber":""}"><div class="r-kopf"><span class="r-zeit">${esc(uhr(o.abfahrt))} → ${esc(uhr(o.ankunft))}</span><span class="r-preis">${esc(o.gratis ? "0,00 €" : o.teilpreis ? "ab " + euro(o.preis) : euro(o.preis))}</span></div>
+    ${o.teilpreis ? `<div class="d">Teilpreis – den Rest zeigt die Bahn beim Buchen</div>` : ""}
+    <div class="d">${Math.floor(o.dauerMin/60)} h ${pad(o.dauerMin%60)} min · ${o.umstiege ? o.umstiege + " Umstieg" + (o.umstiege>1?"e":"") : "direkt"}</div>
+    ${o.arten.map(a => `<span class="r-badge ${esc(a)}">${esc(ARTEN[a]||a)}</span>`).join("")}
+    <ol class="r-legs">${legs}</ol>
+    ${/^https:\/\//.test(o.buchungsUrl||"") ? `<a href="${esc(o.buchungsUrl)}" target="_blank" rel="noopener noreferrer">Bei der Bahn buchen ›</a>` : ""}</div>`;
+}
+
+const dauerText = m => `${Math.floor(m/60)} h ${pad(m%60)} min`;
+const stadtVon = s => {
+  const roh = String(s||""), zusatz = [...roh.matchAll(/\(([^)]*)\)/g)].map(m => m[1].replace(/[^\p{L}\s]/gu, " ").trim()).filter(Boolean);
+  const w = roh.replace(/\(.*?\)/g, " ").replace(/\b(Hbf|Hauptbahnhof|Bf)\b.*$/i, "").trim().split(/\s+/).filter(Boolean);
+  const stadt = w.length > 1 && ["Bad","St.","Sankt","Neu","Lutherstadt"].includes(w[0]) ? w.slice(0,2).join(" ") : (w[0] || "");
+  return [stadt, ...zusatz].join(" ").trim();
+};
+let letzteReise = null;
+
+// Spritkosten in Cent gerechnet (vermeidet Rundungsfehler): km × l/100km × €/l × Fahrten ÷ Personen
+function autoKosten(auto, mitRueck){
+  if(!auto || auto.km == null) return null;
+  const verbrauch = reiseCfg.verbrauch ?? 7, preis = reiseCfg.spritpreis ?? 1.75, personen = Math.max(1, reiseCfg.mitfahrer ?? 1);
+  return Math.round(auto.km * verbrauch * preis * (mitRueck ? 2 : 1) / personen) / 100;
+}
+
+function modusBlock(modus, titel, inhalt){ return `<div class="r-modus" data-modus="${modus}"><h3>${titel}</h3>${inhalt}</div>`; }
+function zeile(k, v, d){ return `<div class="zeile"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>${d ? `<div class="d">${esc(d)}</div>` : ""}</div>`; }
+
+function reiseZeigen(a, erg){
+  letzteReise = {a, erg};
+  for(const k of ["verbrauch_", "spritpreis_", "mitfahrer_"]) delete reiseCfg[k]; // Reste älterer Version
+  const mitRueck = !!a.rueck;
+  // Zug: Teilpreise zählen nicht, sonst würde die Summe Geld versprechen, das nicht übrig bleibt
+  const preisVon = o => o.gratis ? 0 : o.teilpreis ? Infinity : o.preis ?? Infinity;
+  const billigst = liste => liste?.length ? Math.min(...liste.map(preisVon)) : Infinity;
+  const zugGuenstig = (erg.hin||[]).reduce((m, o) => !m || preisVon(o) < preisVon(m) ? o : m, null);
+  const zugSchnell = (erg.hin||[]).reduce((m, o) => !m || o.dauerMin < m.dauerMin ? o : m, null);
+  const zugSumme = billigst(erg.hin) + (mitRueck ? billigst(erg.rueck) : 0);
+  const bh = erg.bus?.hin, br = erg.bus?.rueck;
+  const busSumme = bh?.guenstig ? bh.guenstig.preis + (mitRueck ? (br?.guenstig?.preis ?? Infinity) : 0) : Infinity;
+  const autoSumme = autoKosten(erg.auto, mitRueck) ?? Infinity;
+  const modi = [["Zug", zugSumme, zugSchnell?.dauerMin], ["Bus", busSumme, bh?.schnell?.dauerMin], ["Auto", autoSumme, erg.auto?.minuten]]
+    .map(([n, p, d]) => [n, p, Number.isFinite(d) ? d : null]);
+  const guenstigster = modi.filter(m => isFinite(m[1])).sort((x, y) => x[1] - y[1])[0];
+  const schnellster = modi.filter(m => m[2] != null).sort((x, y) => x[2] - y[2])[0];
+  const summe = guenstigster ? guenstigster[1] : null;
+
+  const tag = String(a.abfahrt).slice(0,10);
+  const naechsterTag = isoDay(new Date(new Date(tag + "T12:00").getTime() + 864e5));
+  const aus = a.rueck && String(a.rueck).slice(0,10) > tag ? String(a.rueck).slice(0,10) : naechsterTag; // Booking braucht mind. 1 Nacht
+  let rest = "";
+  if(a.budget != null && summe != null){
+    const r = a.budget - summe;
+    rest = r >= 0 ? `<div>Budget ${euro(a.budget)} – für Unterkunft &amp; Essen bleiben <b>${euro(r)}</b>.</div>`
+                  : `<div style="color:var(--bad)">Budget ${euro(a.budget)} – ${euro(-r)} drüber.</div>`;
+  }
+
+  const zugInhalt = zugGuenstig ? zeile("Günstigste", zugGuenstig.gratis ? "0,00 € (D-Ticket)" : (zugGuenstig.teilpreis ? "ab " : "") + euro(zugGuenstig.preis), `${uhr(zugGuenstig.abfahrt)} · ${dauerText(zugGuenstig.dauerMin)}`)
+      + zeile("Schnellste", dauerText(zugSchnell.dauerMin), `${uhr(zugSchnell.abfahrt)} · ${zugSchnell.gratis ? "0,00 €" : (zugSchnell.teilpreis ? "ab " : "") + euro(zugSchnell.preis)}`)
+    : `<div class="d">Keine Zugverbindung im Zeitraum.</div>`;
+  const busInhalt = bh?.guenstig ? zeile("Günstigste", euro(bh.guenstig.preis), `${uhr(bh.guenstig.abfahrt)} · ${dauerText(bh.guenstig.dauerMin)}`)
+      + zeile("Schnellste", dauerText(bh.schnell.dauerMin), `${uhr(bh.schnell.abfahrt)} · ${euro(bh.schnell.preis)}`)
+      + (mitRueck && !br?.guenstig ? `<div class="d">Rückfahrt: ${esc(br?.fehler || "kein Bus im Zeitraum")}</div>` : "")
+      + (/^https:\/\//.test(bh.link||"") ? `<a href="${esc(bh.link)}" target="_blank" rel="noopener noreferrer">Bei Flixbus buchen ›</a>` : "")
+    : `<div class="d">${esc(bh?.fehler || "Keine Busse im Zeitraum.")}</div>`;
+  const ak = autoKosten(erg.auto, false), personen = Math.max(1, reiseCfg.mitfahrer ?? 1);
+  const autoInhalt = erg.auto?.km != null ? zeile("Sprit (geschätzt)", euro(ak), `einfache Fahrt${personen > 1 ? `, pro Person bei ${personen}` : ""}`)
+      + zeile("Fahrzeit", dauerText(erg.auto.minuten), `${erg.auto.km} km ohne Stau`)
+    : `<div class="d">${esc(erg.auto?.fehler || "Route nicht berechenbar.")}</div>`;
+  const flugLink = `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flüge von ${stadtVon(a.vonName)} nach ${stadtVon(a.nachName)} am ${tag}${a.rueck ? " zurück am " + String(a.rueck).slice(0,10) : ""}`)}`;
+  const flugInhalt = `<div class="d">Flugpreise gibt es nur direkt bei den Anbietern.</div>${erg.auto?.km != null && erg.auto.km < 400 ? `<div class="d">Für so eine kurze Strecke gibt es meist keine sinnvollen Flüge – Zug oder Bus sind hier fast immer besser.</div>` : ""}
+    <a href="${esc(flugLink)}" target="_blank" rel="noopener noreferrer">Flüge bei Google vergleichen ›</a>`;
+
+  const abschnitt = (titel, liste) => `<h2 style="margin-top:18px"><span>${esc(titel)}</span><span class="count">${liste.length}</span></h2><div class="card">${liste.length ? liste.map(o => reiseKarte(o, a.budget)).join("") : `<div class="empty">Keine Verbindung im Zeitraum gefunden. Probier eine andere Uhrzeit.</div>`}</div>`;
+  $("#r-ergebnis").innerHTML = `<h2><span>${esc(a.vonName)} → ${esc(a.nachName)}</span></h2>
+    <div class="card" id="r-gesamt">
+      <div id="r-summe">Günstigste Kombination${mitRueck ? " (hin + zurück)" : ""}: ${guenstigster ? `<b>${guenstigster[0]}</b>` : ""}<div class="gross">${summe == null ? "–" : euro(summe)}</div>${rest}</div>
+      <div id="r-schnell">Schnellste: ${schnellster ? `<b>${schnellster[0]}</b> · ${dauerText(schnellster[2])}` : "–"}</div>
+      <div class="r-links">
+        <a href="https://www.booking.com/searchresults.de.html?ss=${encodeURIComponent(stadtVon(a.nachName))}&checkin=${tag}&checkout=${aus}&group_adults=1" target="_blank" rel="noopener noreferrer">Unterkunft (Booking) ›</a>
+        <a href="${esc(flugLink)}" target="_blank" rel="noopener noreferrer">Flüge (Google) ›</a>
+      </div>
+    </div>
+    <h2 style="margin-top:18px"><span>Vergleich (Hinfahrt)</span></h2>
+    <div id="r-vergleich">${modusBlock("zug", "🚆 Zug", zugInhalt)}${modusBlock("bus", "🚌 Bus", busInhalt)}${modusBlock("auto", "🚗 Auto", autoInhalt)}${modusBlock("flug", "✈️ Flug", flugInhalt)}</div>
+    ${abschnitt("Alle Züge hin · " + fmtDate(a.abfahrt), erg.hin||[])}${a.rueck ? abschnitt("Alle Züge zurück · " + fmtDate(a.rueck), erg.rueck||[]) : ""}
+    ${unterkunftHtml()}
+    <p class="note">Preise live von bahn.de und Flixbus mit deinen Rabatten, Auto geschätzt. Gebucht wird beim Anbieter.${[...(erg.hin||[]), ...(erg.rueck||[])].some(o => o.gratis) ? " „0 € mit D-Ticket“ gilt nur innerhalb Deutschlands – bei Grenznähe kurz prüfen." : ""}</p>`;
+  unterkunftVerbinden(a, summe, tag, aus);
+}
+
+// ---------- Hotel-Überblick: der Browser fragt OpenStreetMap direkt (Overpass sperrt Anfragen aus dem Cloudflare-Netz).
+// Keine Preise; Sterne sind nur bei einem Teil eingetragen → nur zum Sortieren, nie zum Aussortieren.
+const OSM_ARTEN = {hotel:"hotel", hostel:"hostel", ferienwohnung:"apartment|guest_house", egal:"hotel|hostel|apartment|guest_house"};
+const OSM_NAME = {hotel:"Hotel", hostel:"Hostel", apartment:"Ferienwohnung", guest_house:"Pension"};
+function meterZwischen(a, b){
+  const r = Math.PI/180, dLat = (b.lat-a.lat)*r, dLon = (b.lon-a.lon)*r;
+  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;
+  return Math.round(12742000 * Math.asin(Math.sqrt(x)));
+}
+async function hotelsLaden(stadt){
+  const box = $("#u-liste"), u = reiseCfg.unterkunft || {};
+  box.innerHTML = `<div class="empty">Suche Hotels in ${esc(stadt)} …</div>`;
+  try{
+    const zeit = {signal: AbortSignal.timeout(25000)};
+    const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(stadt.split(" ")[0])}&count=5&language=de`, zeit)).json();
+    const ort = (g.results || []).find(r => r.country_code === "DE") || (g.results || [])[0];
+    if(!ort) throw new Error(`„${stadt}“ nicht gefunden`);
+    const mitte = {lat: ort.latitude, lon: ort.longitude}, arten = OSM_ARTEN[u.art] || OSM_ARTEN.egal;
+    const q = `[out:json][timeout:20];nwr(around:${u.zentrum ? 3000 : 6000},${mitte.lat},${mitte.lon})["tourism"~"^(${arten})$"]["name"];out center tags 300;`;
+    const res = await fetch("https://overpass-api.de/api/interpreter", {method:"POST", body: new URLSearchParams({data: q}), ...zeit});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const erlaubt = new Set(arten.split("|")), wunsch = parseInt(u.sterne) || null;
+    const liste = ((await res.json()).elements || []).filter(x => erlaubt.has(x.tags?.tourism) && x.tags?.name).map(x => {
+      const t = x.tags, pos = x.center || {lat: x.lat, lon: x.lon}, st = String(t.stars || "").match(/^(\d)(S?)/i);
+      const ja = k => /^(yes|indoor|outdoor|included)$/i.test(t[k] || "");
+      return {name: t.name, art: OSM_NAME[t.tourism] || "Unterkunft", sterne: st ? Number(st[1]) : null, superior: !!(st && st[2]),
+        web: [t.website, t["contact:website"]].find(w => /^https:\/\//i.test(w || "")) || null,
+        adresse: [[t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" "), t["addr:postcode"]].filter(Boolean).join(", "),
+        meter: pos.lat != null ? meterZwischen(mitte, pos) : null,
+        extras: [(ja("swimming_pool") || ja("pool")) && "Pool", (ja("sauna") || ja("spa")) && "Sauna/Wellness", ja("breakfast") && "Frühstück"].filter(Boolean)};
+    });
+    const gruppe = h => !wunsch ? 0 : h.sterne == null ? 2 : h.sterne >= wunsch ? 0 : 1;
+    liste.sort((x, y) => gruppe(x) - gruppe(y) || (x.meter ?? 1e9) - (y.meter ?? 1e9));
+    const tag = letzteReise ? String(letzteReise.a.abfahrt).slice(0,10) : "";
+    box.innerHTML = `<p class="note" style="padding:0 14px">${liste.length} Unterkünfte aus OpenStreetMap${liste.length > 25 ? " (die ersten 25)" : ""}. Angaben wie Sterne und Pool sind oft unvollständig – Preise und Ausstattung siehst du bei Booking.</p>`
+      + (liste.length ? liste.slice(0, 25).map(h => `<div class="u-hotel" data-name="${esc(h.name)}">
+        <b>${esc(h.name)}</b> ${h.sterne ? `<span class="sterne">${"★".repeat(h.sterne)}${h.superior ? " S" : ""}</span>` : `<span class="d">Sterne unbekannt</span>`}
+        <div class="d">${esc(h.art)}${h.adresse ? " · " + esc(h.adresse) : ""}${h.meter != null ? ` · ${(h.meter/1000).toLocaleString("de-DE",{maximumFractionDigits:1})} km vom Zentrum` : ""}${h.extras.length ? " · " + esc(h.extras.join(", ")) : ""}</div>
+        <a href="https://www.booking.com/searchresults.de.html?${new URLSearchParams({ss: h.name + " " + stadt, ...(tag ? {checkin: tag} : {})})}" target="_blank" rel="noopener noreferrer">Preis bei Booking ›</a>${h.web ? `<a href="${esc(h.web)}" target="_blank" rel="noopener noreferrer">Webseite ›</a>` : ""}
+      </div>`).join("") : `<div class="empty">Keine Unterkünfte gefunden.</div>`);
+  }catch(e){
+    box.innerHTML = `<div class="empty">Hotelliste gerade nicht verfügbar (${esc(e.name === "TimeoutError" ? "dauert zu lange" : e.message)}) – bitte nochmal versuchen.</div>`;
+  }
+}
+
+// ---------- Unterkunft: Kriterien → fertig gefilterte, nach Preis sortierte Booking-Suche (Codes am 29.09.2026 geprüft)
+const U_ART = {egal:["", "Unterkunft"], hotel:["ht_id=204", "Hotel"], hostel:["ht_id=203", "Hostel"], ferienwohnung:["ht_id=201", "Ferienwohnung"]};
+function unterkunftHtml(){
+  const u = reiseCfg.unterkunft || {};
+  const chk = (id, text) => `<label class="schalter"><input type="checkbox" class="chk" id="${id}" ${u[id.slice(2)] ? "checked" : ""}> ${text}</label>`;
+  const opt = (werte, aktuell) => werte.map(([w, t]) => `<option value="${w}" ${String(aktuell ?? "") === w ? "selected" : ""}>${t}</option>`).join("");
+  return `<h2 style="margin-top:18px"><span>🏨 Unterkunft</span><span class="count">Booking · nach Preis</span></h2>
+    <div class="card"><form id="u-form" autocomplete="off">
+      <div class="zwei">
+        <label class="feld">Sterne<select id="u-sterne">${opt([["", "egal"], ["3", "3 Sterne"], ["4", "4 Sterne"], ["5", "5 Sterne"]], u.sterne)}</select></label>
+        <label class="feld">Art<select id="u-art">${opt([["egal", "egal"], ["hotel", "Hotel"], ["hostel", "Hostel"], ["ferienwohnung", "Ferienwohnung"]], u.art || "egal")}</select></label>
+      </div>
+      <div class="drei">
+        <label class="feld">Personen<input class="f" id="u-personen" type="number" min="1" max="12" inputmode="numeric" value="${esc(u.personen || 1)}"></label>
+        <label class="feld">Zimmer<input class="f" id="u-zimmer" type="number" min="1" max="6" inputmode="numeric" value="${esc(u.zimmer || 1)}"></label>
+        <label class="feld">Max €/Nacht<input class="f" id="u-maxnacht" type="number" min="0" inputmode="numeric" placeholder="auto" value="${esc(u.maxnacht ?? "")}"></label>
+      </div>
+      ${chk("u-pool", "🏊 Pool")}${chk("u-fruehstueck", "🍳 Frühstück inklusive")}${chk("u-bewertung", "👍 Bewertung ab 8")}
+      ${chk("u-storno", "✅ Kostenlos stornierbar")}${chk("u-parkplatz", "🅿️ Parkplatz")}${chk("u-wellness", "💆 Wellness / Spa")}${chk("u-zentrum", "📍 Unter 3 km zum Zentrum")}
+      <p class="d" id="u-info"></p>
+    </form>
+    <div class="u-links"><a id="u-booking" target="_blank" rel="noopener noreferrer">Passende Unterkünfte bei Booking ›</a><a id="u-google" target="_blank" rel="noopener noreferrer">Vergleichen bei Google Hotels ›</a>
+      <button id="u-liste-laden" type="button" class="ghost2">Hotels in der Gegend anzeigen (Überblick)</button></div>
+    <div id="u-liste"></div></div>`;
+}
+function unterkunftVerbinden(a, reiseSumme, tag, aus){
+  const naechte = Math.max(1, Math.round((new Date(aus + "T12:00") - new Date(tag + "T12:00")) / 864e5));
+  const aktualisieren = () => {
+    const u = {sterne: $("#u-sterne").value, art: $("#u-art").value, personen: Math.max(1, parseInt($("#u-personen").value) || 1),
+      zimmer: Math.max(1, parseInt($("#u-zimmer").value) || 1), maxnacht: (parseInt($("#u-maxnacht").value) || 0) > 0 ? parseInt($("#u-maxnacht").value) : null,
+      pool: $("#u-pool").checked, fruehstueck: $("#u-fruehstueck").checked, bewertung: $("#u-bewertung").checked, storno: $("#u-storno").checked,
+      parkplatz: $("#u-parkplatz").checked, wellness: $("#u-wellness").checked, zentrum: $("#u-zentrum").checked};
+    reiseCfg = {...reiseCfg, unterkunft: u}; store.set("lh_reise", reiseCfg);
+    const autoNacht = a.budget != null && reiseSumme != null ? Math.floor((a.budget - reiseSumme) / naechte) : null;
+    const maxNacht = u.maxnacht ?? (autoNacht != null && autoNacht > 0 ? autoNacht : null);
+    const f = [];
+    if(u.sterne) f.push("class=" + u.sterne);
+    if(u.pool) f.push("hotelfacility=433");
+    if(u.fruehstueck) f.push("mealplan=1");
+    if(u.bewertung) f.push("review_score=80");
+    if(u.storno) f.push("fc=2");
+    if(U_ART[u.art]?.[0]) f.push(U_ART[u.art][0]);
+    if(u.parkplatz) f.push("hotelfacility=2");
+    if(u.wellness) f.push("hotelfacility=54");
+    if(u.zentrum) f.push("distance=3000");
+    if(maxNacht != null) f.push(`price=EUR-min-${maxNacht}-1`);
+    const stadt = stadtVon(a.nachName);
+    const q = new URLSearchParams({ss: stadt, checkin: tag, checkout: aus, group_adults: u.personen, no_rooms: u.zimmer, group_children: 0, order: "price"});
+    if(f.length) q.set("nflt", f.join(";"));
+    $("#u-booking").href = "https://www.booking.com/searchresults.de.html?" + q;
+    const text = [u.sterne ? u.sterne + "-Sterne-" + U_ART[u.art || "egal"][1] : U_ART[u.art || "egal"][1], u.pool && "mit Pool", u.fruehstueck && "mit Frühstück",
+      u.wellness && "mit Spa", u.parkplatz && "mit Parkplatz", u.zentrum && "im Zentrum", "in " + stadt, maxNacht != null && `unter ${maxNacht} €`].filter(Boolean).join(" ");
+    $("#u-google").href = "https://www.google.com/travel/search?q=" + encodeURIComponent(text);
+    $("#u-info").textContent = `${naechte} Nacht${naechte > 1 ? "e" : ""} · ${u.personen} Person${u.personen > 1 ? "en" : ""}`
+      + (maxNacht != null ? ` · max. ${maxNacht} € pro Nacht${u.maxnacht == null ? " (aus deinem Restbudget)" : ""}` : "")
+      + (u.maxnacht == null && autoNacht != null && autoNacht <= 0 ? " · Kein Budget mehr für eine Unterkunft übrig – ohne Preisgrenze gesucht." : "");
+  };
+  $("#u-liste-laden").onclick = () => hotelsLaden(stadtVon(a.nachName));
+  $("#u-form").addEventListener("change", aktualisieren);
+  $("#u-form").addEventListener("input", aktualisieren);
+  aktualisieren();
+}
+
+$("#reise-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fehler = t => { $("#r-fehler").textContent = t; $("#r-fehler").hidden = !t; };
+  fehler("");
+  const abfahrt = $("#r-datum").value, rueck = $("#r-rueck-an").checked ? $("#r-rueck").value : "";
+  if(!abfahrt) return fehler("Bitte eine Abfahrtszeit wählen.");
+  if(rueck && rueck < abfahrt) return fehler("Die Rückfahrt liegt vor der Hinfahrt.");
+  const btn = $("#r-suchen"); btn.disabled = true; btn.textContent = "Suche läuft …";
+  try{
+    const vonName = $("#r-von").value.trim(), nachName = $("#r-nach").value.trim();
+    const [von, nach] = await Promise.all([ortId(vonName), ortId(nachName)]);
+    const zone = v => { const m = -new Date(v).getTimezoneOffset(); return `${m>=0?"+":"-"}${pad(Math.floor(Math.abs(m)/60))}:${pad(Math.abs(m)%60)}`; };
+    const iso = v => v ? `${v}:00${zone(v)}` : null;
+    const budget = $("#r-budget").value === "" ? null : Number($("#r-budget").value);
+    const anfrage = {von, nach, vonName, nachName, abfahrt: iso(abfahrt), rueck: iso(rueck), alter: reiseCfg.alter, bc25: reiseCfg.bc25, dticket: reiseCfg.dticket};
+    const erg = await reiseAnfrage("", anfrage);
+    const a = {...anfrage, vonName, nachName, budget};
+    reiseZeigen(a, erg);
+    store.set("lh_reise_letzte", {a, erg});
+  }catch(err){
+    fehler(err.name === "TimeoutError" || err.name === "AbortError" ? "Die Bahn-Suche dauert zu lange – bitte nochmal versuchen."
+         : err.message === "Failed to fetch" ? "Keine Verbindung. Prüf dein Internet." : err.message);
+  }finally{ btn.disabled = false; btn.textContent = "Verbindungen suchen"; }
+});
+reiseEinstellungen();
+{ const l = store.get("lh_reise_letzte", null); if(l?.a && l?.erg) try{ reiseZeigen(l.a, l.erg); }catch(e){} }
+
+// ---------- KI-Chat (Gemini über den Cloudflare-Helfer lifehub-chat) ----------
+const CHAT_URL = "https://lifehub-chat.blaufuchs-2931.workers.dev/chat";
+const CHAT_MAX = 40; // mehr nimmt der Helfer nicht an
+let chatVerlauf = (() => { try{ return JSON.parse(sessionStorage.getItem("lh_chat")) || []; }catch(e){ return []; } })();
+const chatSpeichern = () => { try{ sessionStorage.setItem("lh_chat", JSON.stringify(chatVerlauf)); }catch(e){} };
+
+// Nur eine kleine, sichere Markdown-Teilmenge: erst alles escapen, dann fett, Code, Listen, Zeilenumbrüche
+function renderMd(text){
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  let html = "", liste = false;
+  for(const zeile of String(text).split("\n")){
+    const li = zeile.match(/^\s*[-*•]\s+(.*)$/);
+    if(li){ if(!liste){ html += "<ul>"; liste = true; } html += `<li>${inline(li[1])}</li>`; continue; }
+    if(liste){ html += "</ul>"; liste = false; }
+    html += inline(zeile) + "<br>";
+  }
+  return (liste ? html + "</ul>" : html).replace(/(<br>)+$/, "");
+}
+
+// Nach dem Trennzeichen \u001e schickt der Helfer {quellen:[{titel,url}]} (nur Werkzeug-Antworten)
+const TRENNER = "\u001e";
+function antwortTeilen(roh){
+  const i = roh.indexOf(TRENNER); if(i < 0) return {text: roh, quellen: []};
+  let quellen = [];
+  try{ quellen = (JSON.parse(roh.slice(i + 1)).quellen || []).filter(q => /^https:\/\//i.test(q.url || "")); }catch(e){}
+  return {text: roh.slice(0, i), quellen};
+}
+function quellenHtml(quellen){
+  if(!quellen?.length) return "";
+  return `<div class="quellen">Quellen:${quellen.map(q => `<a href="${esc(q.url)}" target="_blank" rel="noopener noreferrer">${esc(q.titel || q.url)}</a>`).join("")}</div>`;
+}
+
+async function zugangscode(){
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("lifehub-chat:" + store.get("lh_pw","")));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
+// Schuldaten als kurzer Text – bewusst ohne Bewerbungen, Jobs und Hefter-Volltexte
+function chatKontext(){
+  const z = [`Heute: ${new Date().toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}`];
+  const tag = (DATA.vertretung||[]).filter(d=>d.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum))[0];
+  if(tag){
+    z.push(`\nStundenplan ${tag.datum===TODAY ? "heute" : fmtDate(tag.datum)}:`);
+    for(const s of tag.stunden||[]) z.push(`- ${s.stunde}. ${s.beginn||""} ${s.fach_ordner||s.fach} Raum ${s.raum||"–"}${s.ausfall?" (fällt aus)":s.geaendert?" (geändert)":""}${s.info?" – "+s.info:""}`);
+  }
+  const ha = (DATA.hausaufgaben||[]).filter(h=>!state.ha[h.id]);
+  z.push(`\nOffene Hausaufgaben (${ha.length}):`);
+  for(const h of ha) z.push(`- ${h.fach||"Sonstiges"}: ${h.text}${h.faellig?` (bis ${fmtDate(h.faellig)})`:""}`);
+  const kl = (DATA.klausuren||[]).filter(k=>k.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum));
+  z.push(`\nKommende Klausuren (${kl.length}):`);
+  for(const k of kl) z.push(`- ${fmtDate(k.datum)} ${k.fach} ${k.art||""}: ${(k.themen||[]).join("; ") || "Thema noch offen"}`);
+  const no = [...(DATA.noten||[])].sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")).slice(0,8);
+  if(no.length){ z.push("\nLetzte Noten (0–15 Punkte):"); for(const n of no) z.push(`- ${n.fach} ${n.art||""}: ${n.wert} P (${fmtDate(n.datum)})`); }
+  const u = DATA.hefter?.unterricht || [];
+  if(u.length){ z.push(`\nIm Unterricht${DATA.hefter.unterricht_tag?" am "+fmtDate(DATA.hefter.unterricht_tag):""}:`); for(const x of u) z.push(`- ${x.fach}: ${x.thema}`); }
+  return z.join("\n").slice(0, 29000);
+}
+
+function chatBlase(klasse, html){
+  $("#chat-liste .chat-leer")?.remove();
+  const el = document.createElement("div"); el.className = "msg " + klasse; el.innerHTML = html;
+  $("#chat-liste").append(el); $("#chat-liste").scrollTop = $("#chat-liste").scrollHeight;
+  return el;
+}
+function chatZeigen(){
+  $("#chat-liste").innerHTML = chatVerlauf.length ? "" : `<div class="chat-leer">Frag mich alles – zu Schule, Hausaufgaben oder was du willst.<br>Mit 📎 lese ich deine LifeHub-Daten mit.</div>`;
+  for(const m of chatVerlauf) chatBlase(m.role === "user" ? "du" : "ki", m.role === "user" ? esc(m.text) : renderMd(m.text) + quellenHtml(m.quellen));
+}
+function chatFehler(text, nochmalText){
+  const el = chatBlase("ki fehler", esc(text));
+  if(nochmalText !== undefined){
+    const b = document.createElement("button"); b.className = "small ghost2 nochmal"; b.textContent = "Nochmal";
+    b.onclick = () => { if(chatLaeuft) return; b.remove(); chatSenden(nochmalText); };
+    el.append(document.createElement("br"), b);
+  }
+}
+
+let chatLaeuft = false;
+// Während eine Antwort läuft: Senden, „Neuer Chat“ und alte „Nochmal“-Knöpfe sperren
+function chatBeschaeftigt(an){
+  chatLaeuft = an;
+  for(const b of document.querySelectorAll("#chat-senden, #chat-neu, #chat-liste .nochmal")) b.disabled = an;
+}
+async function chatSenden(text){
+  text = text.trim(); if(!text || chatLaeuft) return;
+  chatBeschaeftigt(true);
+  chatVerlauf.push({role:"user", text}); chatSpeichern();
+  const duEl = chatBlase("du", esc(text));
+  let senden = chatVerlauf.slice(-CHAT_MAX).map(m => ({role: m.role, text: m.text}));
+  while(senden.length && senden[0].role !== "user") senden = senden.slice(1); // Gemini will mit einer Frage beginnen
+  const body = {messages: senden};
+  // Jarvis-Persönlichkeit immer mitgeben; LifeHub-Daten nur mit 📎
+  const JARVIS = "ANWEISUNG: Du bist J.A.R.V.I.S., mein KI-Butler wie in Iron Man – höflich, souverän, trockener Humor, Anrede „Sir“ (Sie-Form). Antworte kurz in gesprochenen Sätzen (wird vorgelesen), nichts erfinden.";
+  body.kontext = JARVIS + ($("#chat-kontext").checked ? "\n\n" + chatKontext() : "");
+  const zurueck = () => { chatVerlauf.pop(); chatSpeichern(); duEl.remove(); $("#chat-eingabe").value = text; };
+  let res;
+  try{
+    res = await fetch(CHAT_URL, {method:"POST", headers:{"content-type":"application/json", authorization:"Bearer " + await zugangscode()}, body: JSON.stringify(body)});
+  }catch(e){
+    zurueck(); chatFehler("Keine Verbindung. Prüf dein Internet und tipp nochmal auf Senden.");
+    chatBeschaeftigt(false); return;
+  }
+  if(!res.ok){
+    const meldung = (await res.text().catch(()=>"")) || `Fehler ${res.status}`;
+    zurueck();
+    chatFehler(res.status === 401 ? `${meldung}. Wurde das App-Passwort geändert? Dann am PC „python lifehub.py chat“ ausführen.` : meldung);
+    chatBeschaeftigt(false); return;
+  }
+  const kiEl = chatBlase("ki", "…");
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let antwort = "";
+  try{
+    for(;;){
+      const {done, value} = await reader.read(); if(done) break;
+      antwort += dec.decode(value, {stream:true});
+      const t = antwortTeilen(antwort);
+      kiEl.innerHTML = renderMd(t.text) + quellenHtml(t.quellen); $("#chat-liste").scrollTop = $("#chat-liste").scrollHeight;
+    }
+    const fertig = antwortTeilen(antwort + dec.decode());
+    if(!fertig.text.trim()) throw new Error("leer");
+    chatVerlauf.push({role:"model", text: fertig.text, quellen: fertig.quellen}); chatSpeichern();
+    vorlesen(fertig.text);
+  }catch(e){
+    // Abbruch mitten in der Antwort: Angekommenes bleibt stehen, die Frage kann nochmal gestellt werden
+    chatVerlauf.pop(); chatSpeichern(); duEl.remove();
+    if(antwort.trim()){
+      kiEl.innerHTML = renderMd(antwortTeilen(antwort).text) + "<br><em>… die Antwort wurde unterbrochen.</em>";
+      const b = document.createElement("button"); b.className = "small ghost2 nochmal"; b.textContent = "Nochmal";
+      b.onclick = () => { if(chatLaeuft) return; kiEl.remove(); chatSenden(text); };
+      kiEl.append(document.createElement("br"), b);
+    } else { kiEl.remove(); chatFehler("Keine Antwort bekommen (vielleicht blockiert oder unterbrochen).", text); }
+  }
+  chatBeschaeftigt(false);
+}
+
+// ---------- Jarvis: Sprechen (🎤) und Vorlesen (🔊) – alles im Browser, nichts wird extra gespeichert
+let laut = store.get("lh_laut", false);
+function lautZeigen(){ $("#chat-laut").textContent = laut ? "🔊" : "🔇"; $("#chat-laut").setAttribute("aria-pressed", laut); }
+lautZeigen();
+$("#chat-laut").onclick = () => { laut = !laut; store.set("lh_laut", laut); lautZeigen(); if(!laut) speechSynthesis?.cancel(); };
+// Natürlichste deutsche Stimme: Premium/Erweitert (in iOS unter Bedienungshilfen → Gesprochene Inhalte → Stimmen laden)
+function besteStimme(){
+  const de = speechSynthesis.getVoices().filter(v => v.lang.startsWith("de"));
+  const rang = v => (/premium/i.test(v.name) ? 0 : /enhanced|erweitert/i.test(v.name) ? 1 : /Markus|Viktor|Yannick|Martin/i.test(v.name) ? 2 : /Anna|Helena|Petra/i.test(v.name) ? 3 : 4);
+  return de.sort((a, b) => rang(a) - rang(b))[0] || null;
+}
+function vorlesen(text){
+  if(!laut || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.replace(/[*#_`>|]/g, "").replace(/\s+/g, " ").slice(0, 900));
+  u.lang = "de-DE"; u.voice = besteStimme(); u.rate = 1.02;
+  speechSynthesis.speak(u);
+}
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SR){
+  $("#chat-mic").hidden = false;
+  let rec = null;
+  $("#chat-mic").onclick = () => {
+    if(rec){ rec.stop(); return; }
+    speechSynthesis?.cancel();
+    rec = new SR(); rec.lang = "de-DE"; rec.interimResults = true;
+    $("#chat-mic").classList.add("hoert");
+    let fertig = "";
+    rec.onresult = e => { const r = e.results[e.results.length-1]; $("#chat-eingabe").value = r[0].transcript; if(r.isFinal) fertig = r[0].transcript; };
+    rec.onend = () => { rec = null; $("#chat-mic").classList.remove("hoert"); if(fertig.trim()){ $("#chat-eingabe").value = ""; if(!laut){ laut = true; store.set("lh_laut", true); lautZeigen(); } chatSenden(fertig); } };
+    rec.onerror = e => { if(e.error === "not-allowed") chatFehler("Mikrofon ist blockiert. Erlaube es in den Einstellungen → Safari → Mikrofon."); };
+    rec.start();
+  };
+}
+
+$("#chat-fab").onclick = () => { $("#chat").hidden = false; if(!chatLaeuft) chatZeigen(); }; // laufende Antwort nicht wegwerfen
+$("#chat-zu").onclick = () => { $("#chat").hidden = true; };
+$("#chat-neu").onclick = () => { chatVerlauf = []; chatSpeichern(); chatZeigen(); };
+$("#chat-form").addEventListener("submit", e => { e.preventDefault(); const t = $("#chat-eingabe").value; $("#chat-eingabe").value = ""; chatSenden(t); });
+// iPhone: Die Tastatur verkleinert nur den sichtbaren Bereich – Chat darauf anpassen, damit Kopf und Eingabe sichtbar bleiben
+if(window.visualViewport){
+  const anpassen = () => { $("#chat").style.height = Math.round(visualViewport.height) + "px"; $("#chat").style.top = Math.round(visualViewport.offsetTop) + "px"; };
+  visualViewport.addEventListener("resize", anpassen); visualViewport.addEventListener("scroll", anpassen);
+}
+$("#chat-eingabe").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+
+// ---------- Start ----------
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).then(r => r.update()).catch(()=>{});
+const pw = store.get("lh_pw", "");
+if(pw) unlock(pw, true); else { $("#lock").hidden = false; }
+</script>
+</body>
+</html>
